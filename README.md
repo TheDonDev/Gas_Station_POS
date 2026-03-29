@@ -1,6 +1,6 @@
-# Gas Store POS
+# Gas Station POS
 
-A Flutter-based Point of Sale (POS) application designed for Gas Stores to manage inventory, sales, and receipt printing.
+A Flutter-based Point of Sale (POS) application designed for Gas Stataion to manage inventory, sales, and receipt printing.
 
 ## Features
 

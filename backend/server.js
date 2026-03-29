@@ -41,10 +41,10 @@ app.post('/login', async (req, res) => {
 
 // M-Pesa Credentials
 // Load credentials from environment variables for production readiness
-const consumerKey = process.env.MPESA_CONSUMER_KEY || "g0MmzwVquthei5Yv0ZkaaQP3F2Z7AHFzLUiRBkcm9OH6YgA8"; // Default to sandbox for dev
-const consumerSecret = process.env.MPESA_CONSUMER_SECRET || "5p0z8EA7adEpoVaTuImTkG7s3PCLHrz2tSU5R4mAxsdGj64wNyQMPF4gTAA6PDYO"; // Default to sandbox for dev
-const shortCode = process.env.MPESA_SHORTCODE || "174379"; // Default to sandbox for dev
-const passKey = process.env.MPESA_PASSKEY || "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919"; // Default to sandbox for dev
+const consumerKey = process.env.MPESA_CONSUMER_KEY;
+const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
+const shortCode = process.env.MPESA_SHORTCODE;
+const passKey = process.env.MPESA_PASSKEY;
 
 // Production vs Sandbox URL
 const mpesaBaseUrl = process.env.NODE_ENV === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
