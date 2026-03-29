@@ -91,11 +91,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.delete_sweep, color: Colors.redAccent),
-            title: const Text("Wipe Transaction History"),
-            onTap: () => _confirmWipeTransactions(context),
-          ),
-          ListTile(
             leading: const Icon(Icons.refresh, color: Colors.red),
             title: const Text("Factory Reset"),
             onTap: () => _confirmReset(context, backup),
@@ -130,31 +125,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
     ).then((_) => printer.stopScan());
-  }
-
-  void _confirmWipeTransactions(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Clear Ledger?"),
-        content: const Text("This will permanently delete all sales transactions and reset dashboard analytics. Products and inventory levels will remain."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          TextButton(
-            onPressed: () async {
-              await DatabaseService().clearTable('transactions');
-              if (mounted) {
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Transaction history wiped. Analytics reset.")),
-                );
-              }
-            },
-            child: const Text("Clear History", style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
   }
 
   void _confirmReset(BuildContext context, BackupService backup) {
