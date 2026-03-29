@@ -7,6 +7,7 @@ import 'package:gas_store_pos/providers/inventory_provider.dart';
 import 'package:gas_store_pos/providers/cart_provider.dart';
 import 'package:gas_store_pos/providers/customer_provider.dart';
 import 'package:gas_store_pos/providers/printer_provider.dart';
+import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/screens/welcome_screen.dart';
 import 'package:gas_store_pos/screens/reset_password_screen.dart';
 import 'package:gas_store_pos/data/database_service.dart';
@@ -38,6 +39,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => CustomerProvider()),
         ChangeNotifierProvider(create: (_) => PrinterProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
       ],
       child: MaterialApp(
         title: 'Gas Store POS',

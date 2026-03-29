@@ -21,6 +21,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  String _selectedRole = 'operator';
 
   @override
   void dispose() {
@@ -45,6 +46,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           body: jsonEncode({
             'email': _emailController.text.trim(),
             'password': _passwordController.text,
+            'role': _selectedRole,
           }),
         );
 
@@ -132,6 +134,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         obscured: _obscureConfirmPassword,
                         onToggle: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
                         validator: (value) => value != _passwordController.text ? 'Passwords do not match' : null,
+                      ),
+                      const SizedBox(height: 40),
+                      DropdownButtonFormField<String>(
+                        value: _selectedRole,
+                        dropdownColor: Colors.blueGrey.shade900,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: "Account Role",
+                          labelStyle: const TextStyle(color: Colors.white70),
+                          prefixIcon: const Icon(Icons.badge_outlined, color: Colors.white70),
+                          enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.white.withOpacity(0.3))),
+                          focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.white)),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                        ),
+                        // Remove 'admin' from here after initial setup for extra security
+                        items: ['operator'].map((role) => DropdownMenuItem(value: role, child: Text(role.toUpperCase()))).toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _selectedRole = val);
+                        },
                       ),
                       const SizedBox(height: 40),
                       ElevatedButton(

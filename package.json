@@ -1,0 +1,13 @@
+{
+  "name": "gas_station_pos_root",
+  "version": "1.0.0",
+  "description": "Orchestration for Gas Station POS",
+  "scripts": {
+    "start:backend": "cd backend && npm start",
+    "start:frontend": "flutter run -d windows",
+    "dev": "npx concurrently --kill-others \"npm run start:backend\" \"npm run start:frontend\""
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1"
+  }
+}

@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -12,7 +13,7 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/gas_pos";
+const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://donaldmwanga33_db_user:wPhBhC6JPtg%2F%2Fn3@cluster0.stkbm2j.mongodb.net/gas_pos?retryWrites=true&w=majority&appName=Cluster0";
 
 const mongooseOptions = {
     serverSelectionTimeoutMS: 5000, // Keep trying to connect for 5 seconds
@@ -22,10 +23,16 @@ mongoose.connect(MONGO_URI, mongooseOptions)
     .then(() => console.log("Connected to MongoDB"))
     .catch(err => console.error("Could not connect to MongoDB:", err));
 
+// Connection Monitoring
+mongoose.connection.on('error', err => console.error("MongoDB Runtime Error:", err));
+mongoose.connection.on('disconnected', () => console.warn("MongoDB Disconnected. Attempting to reconnect..."));
+mongoose.connection.on('reconnected', () => console.log("MongoDB Reconnected"));
+
 // User Schema and Model
 const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    role: { type: String, enum: ['admin', 'operator'], default: 'operator' },
     createdAt: { type: Date, default: Date.now },
     resetPasswordToken: String,
     resetPasswordExpires: Date
@@ -33,21 +40,58 @@ const userSchema = new mongoose.Schema({
 
 const User = mongoose.model('User', userSchema);
 
+// Simple in-memory store for M-Pesa transaction results
+const transactionStatus = {};
+
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_gas_pos_key";
+
+// --- MIDDLEWARE ---
+
+// Verify JWT Token
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: "Access denied. No token provided." });
+
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ error: "Invalid or expired token." });
+        req.user = user;
+        next();
+    });
+};
+
+// Restrict access by role
+const authorizeRole = (roles) => {
+    return (req, res, next) => {
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({ error: "Forbidden: You do not have permission to perform this action." });
+        }
+        next();
+    };
+};
 
 // --- AUTHENTICATION ENDPOINTS ---
 
 // Register Endpoint
 app.post('/register', async (req, res) => {
-    const { email, password } = req.body;
+    const { email, password, role } = req.body;
     try {
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ error: "User already exists" });
         }
 
+        // Enforce Single Admin Policy
+        if (role === 'admin') {
+            const adminExists = await User.findOne({ role: 'admin' });
+            if (adminExists) {
+                return res.status(400).json({ error: "An administrator account already exists. Only one admin is allowed." });
+            }
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ email, password: hashedPassword });
+        const newUser = new User({ email, password: hashedPassword, role: role || 'operator' });
         await newUser.save();
 
         res.status(201).json({ message: "User registered successfully" });
@@ -66,8 +110,8 @@ app.post('/login', async (req, res) => {
         return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = jwt.sign({ userId: user._id, email: user.email }, JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).json({ token, email: user.email });
+    const token = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
+    res.status(200).json({ token, email: user.email, role: user.role });
 });
 
 // --- PASSWORD RESET ENDPOINTS ---
@@ -141,6 +185,12 @@ app.post('/reset-password', async (req, res) => {
     res.status(200).json({ message: "Password has been successfully updated" });
 });
 
+// Example of a protected admin route (e.g., getting all users)
+app.get('/admin/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const users = await User.find({}, '-password');
+    res.json(users);
+});
+
 // M-Pesa Credentials
 // Load credentials from environment variables for production readiness
 const consumerKey = process.env.MPESA_CONSUMER_KEY;
@@ -212,8 +262,19 @@ app.post('/stkpush', generateToken, async (req, res) => {
 // Callback URL (where Safaricom sends payment results)
 app.post('/callback', (req, res) => {
     console.log('--- M-PESA CALLBACK RECEIVED ---');
-    console.log(JSON.stringify(req.body, null, 2));
+    const { CheckoutRequestID, ResultCode } = req.body.Body.stkCallback;
+    
+    // Store the result (0 means Success)
+    transactionStatus[CheckoutRequestID] = ResultCode === 0 ? 'SUCCESS' : 'FAILED';
+    
+    console.log(`Transaction ${CheckoutRequestID} resulted in: ${transactionStatus[CheckoutRequestID]}`);
     res.status(200).send("OK");
+});
+
+// Status Check Endpoint (Polling)
+app.get('/status/:checkoutId', (req, res) => {
+    const status = transactionStatus[req.params.checkoutId] || 'PENDING';
+    res.status(200).json({ status });
 });
 
 const PORT = process.env.PORT || 3000;

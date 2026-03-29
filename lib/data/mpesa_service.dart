@@ -16,7 +16,7 @@ class MpesaService {
   //
   // FOR PRODUCTION: This will be your deployed backend URL (e.g., https://api.yourdomain.com)
   // For local testing: Keep updating this with your current ngrok URL.
-  static const String _developmentBaseUrl = 'https://keaton-immeasurable-irresistibly.ngrok-free.de';
+  static const String _developmentBaseUrl = 'http://localhost:3000';
   static const String _productionBaseUrl = 'https://api.yourgaspos.com'; // Replace with your actual production backend URL
 
   // Use different base URL based on environment (e.g., debug vs. release)

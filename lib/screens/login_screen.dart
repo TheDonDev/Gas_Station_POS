@@ -3,9 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:gas_store_pos/screens/register_screen.dart';
 import 'package:gas_store_pos/screens/dashboard_screen.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
+import 'package:gas_store_pos/providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -40,6 +42,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        await context.read<AuthProvider>().login(
+          data['email'], 
+          data['role'], 
+          data['token']
+        );
+
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => const DashboardScreen()),

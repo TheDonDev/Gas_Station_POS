@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:provider/provider.dart';
+import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/data/database_service.dart';
 import 'package:gas_store_pos/screens/inventory_screen.dart';
 import 'package:gas_store_pos/screens/pos_screen.dart';
@@ -90,6 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     final DateTime now = DateTime.now();
+    final auth = context.watch<AuthProvider>();
     final String dateStr = DateFormat('EEEE, d MMMM').format(now);
 
     return AnimatedMeshBackground(
@@ -127,12 +130,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Logout'),
-              onTap: () => Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginScreen()),
-                (route) => false,
-              ),
+              onTap: () {
+                auth.logout();
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
+              },
             ),
+            if (auth.isAdmin)
             ListTile(
               leading: const Icon(Icons.settings),
               title: const Text('Settings'),
@@ -212,7 +219,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _buildMenuCard(context, "Bulk Inventory", Icons.storage, Colors.orange, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScreen())).then((_) => _refreshDashboard())),
                   _buildMenuCard(context, "Sales Ledger", Icons.table_chart, Colors.purple, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionHistoryScreen())).then((_) => _refreshDashboard())),
                   _buildMenuCard(context, "Retailer Directory", Icons.groups, Colors.teal, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerScreen())).then((_) => _refreshDashboard())),
-                  _buildMenuCard(context, "Reports", Icons.bar_chart, Colors.redAccent, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsScreen()))),
+                  if (auth.isAdmin)
+                    _buildMenuCard(context, "Reports", Icons.bar_chart, Colors.redAccent, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsScreen()))),
                 ],
               ),
 
