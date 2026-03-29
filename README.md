@@ -1,69 +1,91 @@
-# Gas Station POS
+# ⛽ Gas Station POS - Next-Gen LPG Management
 
-A Flutter-based Point of Sale (POS) application designed for Gas Stataion to manage inventory, sales, and receipt printing.
+A world-class, full-stack Point of Sale (POS) and Inventory Management system specifically engineered for LPG (Liquid Petroleum Gas) wholesale and retail operations. This solution combines a high-performance Flutter frontend with a robust Node.js/MongoDB backend.
 
-## Features
+---
 
-- **Inventory Management**:
-  - Track full and empty cylinder stock.
-  - Manage distinct prices for Refills vs New cylinders.
-  - Add, Edit, and Delete products.
-- **Point of Sale**:
-  - Cart system for processing multiple items.
-  - Automatic total calculation.
-- **Receipt Printing**:
-  - Supports Thermal Printers (ESC/POS).
-  - Connectivity via USB and Bluetooth.
-- **Reports**:
-  - Sales dashboard with visual charts.
-  - History of daily sales performance.
+## 🚀 Key Features
 
-## Getting Started
+### 🔐 Advanced Authentication
+- **Modern UI Flow**: Welcome screen with options for Login and Registration.
+- **Secure Access**: JWT-based authentication with Bcrypt password hashing.
+- **Password Recovery**: Integrated "Forgot Password" flow utilizing Nodemailer for secure token-based resets via email.
+- **Aesthetics**: World-class design featuring **Glassmorphism**, **Hero Animations**, and a custom **Animated Mesh Background**.
 
-### Prerequisites
+### 📦 Core Operations
+- **Inventory Management**: Specialized tracking for full/empty cylinders and bulk LPG levels.
+- **Wholesale POS**: Streamlined cart system for rapid processing of retail refills.
+- **Retailer Directory**: Manage a database of frequent retailers and wholesale customers.
 
-- Flutter SDK installed.
-- Visual Studio (C++ workload) for Windows development.
+### 💳 Payments & Printing
+- **M-Pesa Integration**: Native STK Push triggers for automated mobile payments.
+- **Transaction Polling**: Real-time status checking for M-Pesa transactions.
+- **Thermal Printing**: Support for ESC/POS receipt printing via USB and Bluetooth.
 
-### Installation
+### 📊 Admin & Maintenance
+- **Analytics Dashboard**: Visual sales summaries, revenue tracking, and top-selling product charts using `fl_chart`.
+- **Data Resilience**: Local SQLite backup/restore functionality and production-ready MongoDB persistence.
+- **Maintenance**: Built-in factory reset and data maintenance tools.
 
-1.  Clone the repository.
-2.  Install dependencies:
+---
+
+## 🛠 Tech Stack
+
+- **Frontend**: Flutter (Provider for State Management, Google Fonts, fl_chart)
+- **Backend**: Node.js & Express.js
+- **Database**: MongoDB (Production/User Auth) & SQLite (Local Transactions/Inventory)
+- **DevOps**: Docker & Docker Compose
+- **Payments**: Safaricom Daraja API (M-Pesa)
+
+---
+
+## 📦 Getting Started
+
+### Option 1: Docker (Full Stack - Recommended)
+The easiest way to run the entire stack (Frontend, Backend, and MongoDB) is using Docker Compose.
+
+1.  Ensure you have a `.env` file in the `backend/` directory with your M-Pesa and Email credentials.
+2.  Run the following command in the root directory:
     ```bash
-    flutter pub get
+    docker compose up --build
     ```
-3.  Run the application:
-    ```bash
-    flutter run -d windows
-    ```
+3.  Access the Flutter Web app at `http://localhost:8080`.
 
-### Build Output
+### Option 2: Manual Development
+**Backend:**
+1. Navigate to `backend/`.
+2. Run `npm install` and `npm start`.
 
-After building, the executable file (`gas_store_pos.exe`) can be found in:
-`build/windows/x64/runner/Release/`
+**Frontend:**
+1. Run `flutter pub get`.
+2. Run `flutter run -d windows` (or `chrome`).
 
-## Deployment
+---
 
-To package the application for distribution (e.g., using Inno Setup):
+## ⚙️ Environment Variables
+Create a `.env` file in the `backend/` folder:
 
-1.  Build the release version:
-    ```bash
-    flutter build windows
-    ```
-2.  Ensure you bundle **all** files from:
-    `build\windows\x64\runner\Release\`
+```env
+PORT=3000
+MONGO_URI=mongodb://db:27017/gas_pos
+JWT_SECRET=your_secret_key
 
-    This includes:
-    - `gas_store_pos.exe`
-    - `flutter_windows.dll`
-    - `data\` folder
-    - `sqlite3.dll`
+MPESA_CONSUMER_KEY=your_key
+MPESA_CONSUMER_SECRET=your_secret
+MPESA_SHORTCODE=174379
+MPESA_PASSKEY=your_passkey
+MPESA_CALLBACK_URL=https://your-domain.com/callback
 
-> **Note:** This application is 64-bit (x64) only. It will not run on 32-bit Windows installations.
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
+```
 
-## Technologies
+---
 
-- **Flutter**: UI Framework.
-- **Provider**: State Management.
-- **SQLite**: Local Database.
-- **esc_pos_utils**: Receipt formatting.
+## 🛡 Security & Design
+- **CORS Enabled**: Backend configured for cross-origin requests.
+- **Responsive Design**: UI adapts for Windows Desktop and Web browsers.
+- **Network Awareness**: Flutter app automatically detects environment to route API calls (10.0.2.2 for Android vs localhost for Desktop).
+
+## 📜 License
+This project is licensed under the ISC License.

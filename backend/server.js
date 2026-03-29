@@ -13,7 +13,12 @@ app.use(express.json());
 
 // MongoDB Connection
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/gas_pos";
-mongoose.connect(MONGO_URI)
+
+const mongooseOptions = {
+    serverSelectionTimeoutMS: 5000, // Keep trying to connect for 5 seconds
+};
+
+mongoose.connect(MONGO_URI, mongooseOptions)
     .then(() => console.log("Connected to MongoDB"))
     .catch(err => console.error("Could not connect to MongoDB:", err));
 
