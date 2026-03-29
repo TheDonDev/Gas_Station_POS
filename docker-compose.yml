@@ -8,6 +8,18 @@ services:
       - "3000:3000"
     env_file:
       - ./backend/.env
+    environment:
+      - MONGO_URI=mongodb://db:27017/gas_pos
+    depends_on:
+      - db
+    restart: always
+
+  db:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
     restart: always
 
   frontend:
@@ -19,3 +31,6 @@ services:
     restart: always
     depends_on:
       - backend
+
+volumes:
+  mongodb_data:

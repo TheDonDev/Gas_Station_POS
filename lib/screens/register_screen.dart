@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
@@ -33,9 +34,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        // Note: Replace localhost with your server IP or ngrok URL if testing on a physical device
+        // Automatically handle the correct IP for Android Emulators vs Desktop/iOS
+        final String baseUrl = Platform.isAndroid 
+            ? 'http://10.0.2.2:3000' 
+            : 'http://localhost:3000';
+        
         final response = await http.post(
-          Uri.parse('http://localhost:3000/register'),
+          Uri.parse('$baseUrl/register'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'email': _emailController.text.trim(),
@@ -55,8 +60,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
         }
       } catch (e) {
+        debugPrint("Registration Error: $e");
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not connect to server. Check your connection.')),
+          SnackBar(content: Text('Connection failed: $e')),
         );
       } finally {
         setState(() => _isLoading = false);

@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:gas_store_pos/screens/register_screen.dart';
@@ -22,8 +23,13 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLogin() async {
     setState(() => _isLoading = true);
     try {
+      // Automatically handle the correct IP for Android Emulators vs Desktop/iOS
+      final String baseUrl = Platform.isAndroid 
+          ? 'http://10.0.2.2:3000' 
+          : 'http://localhost:3000';
+
       final response = await http.post(
-        Uri.parse('http://localhost:3000/login'),
+        Uri.parse('$baseUrl/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': _emailController.text.trim(),
@@ -43,7 +49,8 @@ class _LoginScreenState extends State<LoginScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Server connection failed')));
+      debugPrint("Login Error: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Server connection failed: $e')));
     } finally {
       setState(() => _isLoading = false);
     }
