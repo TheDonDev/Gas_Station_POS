@@ -9,7 +9,7 @@ import 'package:gas_store_pos/screens/transaction_history_screen.dart';
 import 'package:gas_store_pos/screens/customer_screen.dart';
 import 'package:gas_store_pos/screens/settings_screen.dart';
 import 'package:gas_store_pos/screens/reports_screen.dart';
-import 'package:gas_store_pos/screens/auth_screen.dart';
+import 'package:gas_store_pos/screens/login_screen.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -129,7 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               title: const Text('Logout'),
               onTap: () => Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (_) => const AuthScreen()),
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
                 (route) => false,
               ),
             ),

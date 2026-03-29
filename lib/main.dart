@@ -7,7 +7,8 @@ import 'package:gas_store_pos/providers/inventory_provider.dart';
 import 'package:gas_store_pos/providers/cart_provider.dart';
 import 'package:gas_store_pos/providers/customer_provider.dart';
 import 'package:gas_store_pos/providers/printer_provider.dart';
-import 'package:gas_store_pos/screens/auth_screen.dart';
+import 'package:gas_store_pos/screens/welcome_screen.dart';
+import 'package:gas_store_pos/screens/reset_password_screen.dart';
 import 'package:gas_store_pos/data/database_service.dart';
 
 void main() async {
@@ -46,8 +47,17 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
           textTheme: GoogleFonts.poppinsTextTheme(),
         ),
-        home: const AuthScreen(),
+        home: _getInitialScreen(),
       ),
     );
+  }
+
+  Widget _getInitialScreen() {
+    // Extract token from URL query parameters (useful for Web deep linking)
+    final String? token = Uri.base.queryParameters['token'];
+    if (token != null && token.isNotEmpty) {
+      return ResetPasswordScreen(token: token);
+    }
+    return const WelcomeScreen();
   }
 }

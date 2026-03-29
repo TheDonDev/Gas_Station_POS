@@ -2,8 +2,8 @@ import 'dart:ui';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
-import 'register_screen.dart';
-import 'dashboard_screen.dart';
+import 'package:gas_store_pos/screens/register_screen.dart';
+import 'package:gas_store_pos/screens/dashboard_screen.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -49,6 +49,68 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _showForgotPasswordDialog() {
+    final TextEditingController forgotEmailController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.blueGrey.shade900,
+        title: const Text("Forgot Password?", style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Enter your email address to receive a password reset link.", style: TextStyle(color: Colors.white70)),
+            const SizedBox(height: 20),
+            TextField(
+              controller: forgotEmailController,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: "Email Address",
+                labelStyle: const TextStyle(color: Colors.white70),
+                border: const OutlineInputBorder(),
+                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white.withOpacity(0.3))),
+                focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.white)),
+              ),
+              keyboardType: TextInputType.emailAddress,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel", style: TextStyle(color: Colors.white70))),
+          ElevatedButton(
+            onPressed: () => _handleForgotPassword(forgotEmailController.text.trim(), ctx),
+            child: const Text("Send Link"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleForgotPassword(String email, BuildContext dialogContext) async {
+    if (email.isEmpty) return;
+    Navigator.pop(dialogContext);
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      if (!mounted) return;
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset link sent! Check your email.')));
+      } else {
+        final error = jsonDecode(response.body)['error'] ?? 'Request failed';
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Server connection failed')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedMeshBackground(
@@ -57,19 +119,22 @@ class _LoginScreenState extends State<LoginScreen> {
           child: ClipRRect(
             borderRadius: BorderRadius.circular(30),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20), // Increased blur
               child: Container(
                 width: 400,
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.white.withOpacity(0.15), // Increased opacity for readability
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: Colors.white.withOpacity(0.2)),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.local_gas_station, size: 80, color: Colors.white),
+                    const Hero(
+                      tag: 'brand-logo',
+                      child: Icon(Icons.local_gas_station, size: 80, color: Colors.white),
+                    ),
                     const SizedBox(height: 20),
                     const Text("GAS POS LOGIN", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
                     const SizedBox(height: 40),
@@ -83,7 +148,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
                       obscured: _obscurePassword,
                     ),
-                    const SizedBox(height: 40),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: _showForgotPasswordDialog,
+                        child: const Text("Forgot Password?", style: TextStyle(color: Colors.white70)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,

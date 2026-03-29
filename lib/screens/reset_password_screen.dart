@@ -2,61 +2,72 @@ import 'dart:ui';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:gas_store_pos/screens/login_screen.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
 
-class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+class ResetPasswordScreen extends StatefulWidget {
+  final String? token;
+  const ResetPasswordScreen({super.key, this.token});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
-  bool _obscurePassword = true;
-  bool _obscureConfirmPassword = true;
-  
   bool _isLoading = false;
-  final _emailController = TextEditingController();
+  bool _obscurePassword = true;
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
   @override
   void dispose() {
-    _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  void _handleRegister() async {
+  void _handleReset() async {
+    // Extract token from widget or directly from URL query parameters
+    final token = widget.token ?? Uri.base.queryParameters['token'];
+
+    if (token == null || token.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid or missing reset token.')),
+      );
+      return;
+    }
+
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        // Note: Replace localhost with your server IP or ngrok URL if testing on a physical device
         final response = await http.post(
-          Uri.parse('http://localhost:3000/register'),
+          Uri.parse('http://localhost:3000/reset-password'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
-            'email': _emailController.text.trim(),
-            'password': _passwordController.text,
+            'token': token,
+            'newPassword': _passwordController.text,
           }),
         );
 
         if (!mounted) return;
 
-        if (response.statusCode == 201) {
+        if (response.statusCode == 200) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account created! Please login.')),
+            const SnackBar(content: Text('Password updated! Please login.')),
           );
-          Navigator.pop(context);
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+            (route) => false,
+          );
         } else {
-          final error = jsonDecode(response.body)['error'] ?? 'Registration failed';
+          final error = jsonDecode(response.body)['error'] ?? 'Reset failed';
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
         }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not connect to server. Check your connection.')),
+          const SnackBar(content: Text('Server connection failed')),
         );
       } finally {
         setState(() => _isLoading = false);
@@ -69,16 +80,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return AnimatedMeshBackground(
       child: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 20),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(30),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
               child: Container(
                 width: 450,
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.white.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: Colors.white.withOpacity(0.2)),
                 ),
@@ -89,42 +99,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     children: [
                       const Hero(
                         tag: 'brand-logo',
-                        child: Icon(Icons.local_gas_station, size: 80, color: Colors.white),
+                        child: Icon(Icons.lock_reset, size: 80, color: Colors.white),
                       ),
                       const SizedBox(height: 20),
                       const Text(
-                        "CREATE ACCOUNT",
+                        "RESET PASSWORD",
                         style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5),
                       ),
                       const SizedBox(height: 40),
                       _buildTextField(
-                        "Email Address",
-                        Icons.email_outlined,
-                        controller: _emailController,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) return 'Email is required';
-                          if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) return 'Enter a valid email';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      _buildTextField(
-                        "Password",
+                        "New Password",
                         Icons.lock_outline,
-                        isPassword: true,
                         controller: _passwordController,
+                        isPassword: true,
                         obscured: _obscurePassword,
                         onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
                         validator: (value) => value!.length < 6 ? 'Password must be 6+ characters' : null,
                       ),
                       const SizedBox(height: 20),
                       _buildTextField(
-                        "Confirm Password",
+                        "Confirm New Password",
                         Icons.lock_reset_outlined,
-                        isPassword: true,
                         controller: _confirmPasswordController,
-                        obscured: _obscureConfirmPassword,
-                        onToggle: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                        isPassword: true,
+                        obscured: _obscurePassword,
                         validator: (value) => value != _passwordController.text ? 'Passwords do not match' : null,
                       ),
                       const SizedBox(height: 40),
@@ -135,15 +133,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           minimumSize: const Size(double.infinity, 55),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                         ),
-                        onPressed: _isLoading ? null : _handleRegister,
+                        onPressed: _isLoading ? null : _handleReset,
                         child: _isLoading 
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Text("REGISTER", style: TextStyle(fontWeight: FontWeight.bold)),
+                          : const Text("UPDATE PASSWORD", style: TextStyle(fontWeight: FontWeight.bold)),
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: const Text("Already have an account? Login", style: TextStyle(color: Colors.white70)),
-                      )
                     ],
                   ),
                 ),
@@ -165,7 +159,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         labelText: label,
         labelStyle: const TextStyle(color: Colors.white70),
         prefixIcon: Icon(icon, color: Colors.white70),
-        suffixIcon: isPassword ? IconButton(icon: Icon(obscured ? Icons.visibility_off : Icons.visibility, color: Colors.white70), onPressed: onToggle) : null,
+        suffixIcon: isPassword && onToggle != null 
+          ? IconButton(icon: Icon(obscured ? Icons.visibility_off : Icons.visibility, color: Colors.white70), onPressed: onToggle) 
+          : null,
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: Colors.white.withOpacity(0.3))),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: const BorderSide(color: Colors.white)),
         errorStyle: const TextStyle(color: Colors.orangeAccent),

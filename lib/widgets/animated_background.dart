@@ -27,6 +27,7 @@ class _AnimatedMeshBackgroundState extends State<AnimatedMeshBackground> with Si
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF0A0E21), // Deep dark base for contrast
       body: Stack(
         children: [
           AnimatedBuilder(
@@ -64,10 +65,10 @@ class MeshPainter extends CustomPainter {
     final x2 = size.width * (0.2 + 0.2 * cos(progress * 2 * pi + pi));
     final y2 = size.height * (0.8 + 0.1 * sin(progress * 2 * pi));
 
-    // Gas Station Theme Colors (Blues, Greens, and Oranges)
+    // Optimized Theme Colors for better text visibility
     drawCircle(Colors.blue.shade900, Offset(x1, y1), 200);
-    drawCircle(Colors.orange.shade300, Offset(x2, y2), 250);
-    drawCircle(Colors.teal.shade200, Offset(size.width - x1, size.height - y1), 180);
+    drawCircle(Colors.orange.shade800.withOpacity(0.5), Offset(x2, y2), 250);
+    drawCircle(Colors.teal.shade700.withOpacity(0.4), Offset(size.width - x1, size.height - y1), 180);
   }
 
   @override
