@@ -1,0 +1,11 @@
+# Flutter builds
+build/
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# Docker
+.env
+docker-compose.override.yml
+*.log
