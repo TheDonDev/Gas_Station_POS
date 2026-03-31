@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 // Use your existing connection string from .env or the fallback
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://donaldmwanga33_db_user:wPhBhC6JPtg%2F%2Fn3@cluster0.stkbm2j.mongodb.net/gas_pos?retryWrites=true&w=majority&appName=Cluster0";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/gas_pos";
 
 // We define the schema here to match your server.js model
 const userSchema = new mongoose.Schema({

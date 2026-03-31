@@ -42,7 +42,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         
         final response = await http.post(
           Uri.parse('$baseUrl/register'),
-          headers: {'Content-Type': 'application/json'},
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
           body: jsonEncode({
             'email': _emailController.text.trim(),
             'password': _passwordController.text,
@@ -52,14 +56,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
         if (!mounted) return;
 
-        if (response.statusCode == 201) {
+        final bool isJson = response.headers['content-type']?.contains('application/json') ?? false;
+
+        if (response.statusCode == 201 && isJson) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Account created! Please login.')),
           );
           Navigator.pop(context);
-        } else {
+        } else if (isJson) {
           final error = jsonDecode(response.body)['error'] ?? 'Registration failed';
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        } else {
+          debugPrint("Server Error (${response.statusCode}): ${response.body}");
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Server Error: Received non-JSON response (${response.statusCode})')),
+          );
         }
       } catch (e) {
         debugPrint("Registration Error: $e");

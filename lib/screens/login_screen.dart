@@ -32,7 +32,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       final response = await http.post(
         Uri.parse('$baseUrl/login'),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'ngrok-skip-browser-warning': 'true', // Helpful if using ngrok
+        },
         body: jsonEncode({
           'email': _emailController.text.trim(),
           'password': _passwordController.text,
@@ -41,7 +45,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
+      // Check if the response is actually JSON
+      final bool isJson = response.headers['content-type']?.contains('application/json') ?? false;
+
+      if (response.statusCode == 200 && isJson) {
         final data = jsonDecode(response.body);
         
         await context.read<AuthProvider>().login(
@@ -54,9 +61,15 @@ class _LoginScreenState extends State<LoginScreen> {
           context,
           MaterialPageRoute(builder: (_) => const DashboardScreen()),
         );
-      } else {
+      } else if (isJson) {
         final error = jsonDecode(response.body)['error'] ?? 'Invalid email or password';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      } else {
+        // The server returned HTML or something else
+        debugPrint("Server Error (${response.statusCode}): ${response.body}");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Server Error: Received non-JSON response (${response.statusCode})')),
+        );
       }
     } catch (e) {
       debugPrint("Login Error: $e");

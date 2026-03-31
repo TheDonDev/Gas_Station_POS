@@ -13,15 +13,29 @@ app.use(cors());
 app.use(express.json());
 
 // MongoDB Connection
-const MONGO_URI = process.env.MONGO_URI || "mongodb+srv://donaldmwanga33_db_user:wPhBhC6JPtg%2F%2Fn3@cluster0.stkbm2j.mongodb.net/gas_pos?retryWrites=true&w=majority&appName=Cluster0";
+const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/gas_pos";
 
 const mongooseOptions = {
     serverSelectionTimeoutMS: 5000, // Keep trying to connect for 5 seconds
 };
 
-mongoose.connect(MONGO_URI, mongooseOptions)
-    .then(() => console.log("Connected to MongoDB"))
-    .catch(err => console.error("Could not connect to MongoDB:", err));
+// Disable buffering globally to catch connection issues immediately
+mongoose.set('bufferCommands', false);
+
+const connectDB = async () => {
+    try {
+        console.log(`📡 Attempting to connect to: ${MONGO_URI.split('@')[1] || MONGO_URI}`);
+        await mongoose.connect(MONGO_URI, mongooseOptions);
+        console.log("*****************************************");
+        console.log("✅ DATABASE CONNECTED SUCCESSFULLY");
+        console.log("*****************************************");
+        // Start listening only AFTER the database is connected
+        app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+    } catch (err) {
+        console.error("❌ Could not connect to MongoDB:", err.message);
+        process.exit(1); // Exit if DB connection fails
+    }
+};
 
 // Connection Monitoring
 mongoose.connection.on('error', err => console.error("MongoDB Runtime Error:", err));
@@ -104,14 +118,19 @@ app.post('/register', async (req, res) => {
 // Login Endpoint
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    try {
+        const user = await User.findOne({ email });
 
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-        return res.status(401).json({ error: "Invalid credentials" });
+        if (!user || !(await bcrypt.compare(password, user.password))) {
+            return res.status(401).json({ error: "Invalid credentials" });
+        }
+
+        const token = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
+        res.status(200).json({ token, email: user.email, role: user.role });
+    } catch (error) {
+        console.error("Login Database Error:", error.message);
+        res.status(500).json({ error: "Internal Server Error: Database connection failed" });
     }
-
-    const token = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
-    res.status(200).json({ token, email: user.email, role: user.role });
 });
 
 // --- PASSWORD RESET ENDPOINTS ---
@@ -119,7 +138,8 @@ app.post('/login', async (req, res) => {
 // Forgot Password: Request a reset link
 app.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
-    const user = await User.findOne({ email });
+    try {
+        const user = await User.findOne({ email });
 
     if (!user) {
         return res.status(404).json({ error: "User with this email does not exist" });
@@ -161,34 +181,52 @@ app.post('/forgot-password', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: "Error sending reset email" });
     }
+    } catch (error) {
+        console.error("Forgot Password Database Error:", error.message);
+        res.status(500).json({ error: "Internal Server Error: Database connection failed" });
+    }
 });
 
 // Reset Password: Use the token to set a new password
 app.post('/reset-password', async (req, res) => {
     const { token, newPassword } = req.body;
+    try {
+        const user = await User.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpires: { $gt: Date.now() }
+        });
 
-    const user = await User.findOne({
-        resetPasswordToken: token,
-        resetPasswordExpires: { $gt: Date.now() }
-    });
+        if (!user) {
+            return res.status(400).json({ error: "Password reset token is invalid or has expired" });
+        }
 
-    if (!user) {
-        return res.status(400).json({ error: "Password reset token is invalid or has expired" });
+        // Hash the new password and clear the reset fields
+        user.password = await bcrypt.hash(newPassword, 10);
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpires = undefined;
+        await user.save();
+
+        res.status(200).json({ message: "Password has been successfully updated" });
+    } catch (error) {
+        console.error("Reset Password Database Error:", error.message);
+        res.status(500).json({ error: "Internal Server Error: Database connection failed" });
     }
-
-    // Hash the new password and clear the reset fields
-    user.password = await bcrypt.hash(newPassword, 10);
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpires = undefined;
-    await user.save();
-
-    res.status(200).json({ message: "Password has been successfully updated" });
 });
 
 // Example of a protected admin route (e.g., getting all users)
 app.get('/admin/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     const users = await User.find({}, '-password');
     res.json(users);
+});
+
+// Health Check Endpoint to verify server and DB status
+app.get('/health', (req, res) => {
+    const dbStatus = mongoose.connection.readyState;
+    const statusMap = { 0: 'disconnected', 1: 'connected', 2: 'connecting', 3: 'disconnecting' };
+    res.status(200).json({
+        status: 'UP',
+        database: statusMap[dbStatus] || 'unknown'
+    });
 });
 
 // M-Pesa Credentials
@@ -277,5 +315,11 @@ app.get('/status/:checkoutId', (req, res) => {
     res.status(200).json({ status });
 });
 
+// Global Error Handler to prevent HTML responses
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: "Internal Server Error", message: err.message });
+});
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
+connectDB();

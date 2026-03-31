@@ -1,15 +1,25 @@
 # Set encoding to UTF8 for clean emoji display
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+chcp 65001 > $null
 
 Write-Host "🚀 Starting Gas Station POS Full Stack..." -ForegroundColor Cyan
 
 # Prevent "cannot open for writing" error by closing any running instances of the app
 Write-Host "🧹 Cleaning up previous instances..." -ForegroundColor Gray
-Stop-Process -Name "gas_store_pos" -ErrorAction SilentlyContinue
+# Use taskkill to aggressively release file handles
+taskkill /F /IM gas_store_pos.exe /T 2>$null
+
+# Small delay to allow Windows to release file locks
+Start-Sleep -Seconds 1
+
+# Kill any orphaned Node.js processes to ensure the latest server.js runs
+Write-Host "🛑 Stopping existing Node servers..." -ForegroundColor Gray
+Get-Process "node" -ErrorAction SilentlyContinue | Stop-Process -Force
 
 # 1. Start the Node.js Backend in a new window so logs stay separated
 Write-Host "📦 Launching Backend Server..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "Set-Location backend; npm start"
+Start-Process powershell -WorkingDirectory "$PSScriptRoot\backend" -ArgumentList "-NoExit", "-Command", "npm start"
 
 # 2. Start the Flutter Frontend in the current window
 Write-Host "📱 Launching Flutter Frontend..." -ForegroundColor Green
