@@ -106,6 +106,12 @@ const authorizeRole = (roles) => {
 // Send Verification OTP (Generic)
 app.post('/send-otp', async (req, res) => {
     const { email, type } = req.body; // type: 'register' or 'change-password'
+
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.error("❌ EMAIL_USER or EMAIL_PASS missing in .env file");
+        return res.status(500).json({ error: "Server configuration error: Email credentials missing" });
+    }
+
     try {
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
         const expires = Date.now() + 600000; // 10 minutes
@@ -120,6 +126,7 @@ app.post('/send-otp', async (req, res) => {
             await user.save();
         }
 
+        console.log(`📧 Attempting to send ${type} OTP to: ${email}`);
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
@@ -127,13 +134,19 @@ app.post('/send-otp', async (req, res) => {
 
         await transporter.sendMail({
             to: email,
-            from: 'auth@gaspos.com',
+            from: process.env.EMAIL_USER,
             subject: 'Your Verification Code',
             text: `Your verification code is: ${otp}. It expires in 10 minutes.`
         });
 
         res.status(200).json({ message: "OTP sent successfully" });
     } catch (error) {
+        if (error.code === 'EAUTH') {
+            console.error("❌ SMTP Authentication Failed: Check if you are using a 16-character Gmail App Password.");
+            console.error("   Details:", error.response);
+        } else {
+            console.error("OTP Mail Error:", error);
+        }
         res.status(500).json({ error: "Failed to send OTP" });
     }
 });
@@ -225,7 +238,7 @@ app.post('/forgot-password', async (req, res) => {
 
     const mailOptions = {
         to: user.email,
-        from: 'passwordreset@gaspos.com',
+        from: process.env.EMAIL_USER,
         subject: 'Gas Station POS Password Reset',
         text: `You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n` +
               `Please click on the following link, or paste this into your browser to complete the process:\n\n` +

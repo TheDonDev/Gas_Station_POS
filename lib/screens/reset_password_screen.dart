@@ -88,7 +88,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                 width: 450,
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
+                  color: Colors.black.withOpacity(0.4), // Consistent with other auth screens
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: Colors.white.withOpacity(0.2)),
                 ),

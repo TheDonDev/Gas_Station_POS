@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
@@ -23,8 +24,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _otpController = TextEditingController();
+  
   String _selectedRole = 'operator';
   bool _otpSent = false;
+  int _secondsRemaining = 0;
+  Timer? _timer;
 
   @override
   void dispose() {
@@ -33,7 +37,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _otpController.dispose();
+    _timer?.cancel();
     super.dispose();
+  }
+
+  void _startTimer() {
+    setState(() => _secondsRemaining = 60);
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_secondsRemaining > 0) _secondsRemaining--;
+        else _timer?.cancel();
+      });
+    });
   }
 
   Future<void> _sendOTP() async {
@@ -46,6 +62,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': _emailController.text.trim(), 'type': 'register'}),
       );
+      _startTimer();
       setState(() => _otpSent = true);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verification code sent!')));
     } catch (e) {
@@ -183,13 +200,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         validator: (value) => value != _passwordController.text ? 'Passwords do not match' : null,
                       ),
                       const SizedBox(height: 40),
-                      if (!_otpSent)
-                        TextButton.icon(
-                          onPressed: _isLoading ? null : _sendOTP,
-                          icon: const Icon(Icons.send, color: Colors.white),
-                          label: const Text("Verify Email to Register", style: TextStyle(color: Colors.white)),
-                        )
-                      else
+                      TextButton.icon(
+                        onPressed: (_isLoading || _secondsRemaining > 0) ? null : _sendOTP,
+                        icon: Icon(_otpSent ? Icons.refresh : Icons.send, color: Colors.white),
+                        label: Text(
+                          _secondsRemaining > 0 ? "Resend in ${_secondsRemaining}s" : (_otpSent ? "Resend Code" : "Verify Email to Register"),
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                      ),
+                      if (_otpSent) ...[
+                        const SizedBox(height: 10),
                         _buildTextField(
                           "Verification Code",
                           Icons.security,
@@ -199,6 +219,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             return null;
                           },
                         ),
+                      ],
                       const SizedBox(height: 20),
                       DropdownButtonFormField<String>(
                         value: _selectedRole,

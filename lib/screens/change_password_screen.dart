@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
@@ -22,6 +23,28 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _otpSent = false;
+  int _secondsRemaining = 0;
+  Timer? _timer;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    _otpController.dispose();
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startTimer() {
+    setState(() => _secondsRemaining = 60);
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_secondsRemaining > 0) _secondsRemaining--;
+        else _timer?.cancel();
+      });
+    });
+  }
 
   Future<void> _sendOTP() async {
     setState(() => _isLoading = true);
@@ -33,6 +56,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': auth.user?.email, 'type': 'change-password'}),
       );
+      _startTimer();
       setState(() => _otpSent = true);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('2FA code sent to your email!')));
     } catch (e) {
@@ -129,18 +153,21 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     validator: (v) => v != _passwordController.text ? 'Passwords do not match' : null,
                   ),
                   const SizedBox(height: 20),
-                  if (isOperator && !_otpSent)
+                  if (isOperator) ...[
                     ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _sendOTP,
-                      icon: const Icon(Icons.email),
-                      label: const Text("GET 2FA CODE"),
-                    )
-                  else if (isOperator)
-                    TextFormField(
+                      onPressed: (_isLoading || _secondsRemaining > 0) ? null : _sendOTP,
+                      icon: Icon(_otpSent ? Icons.refresh : Icons.email),
+                      label: Text(_secondsRemaining > 0 ? "Wait ${_secondsRemaining}s" : (_otpSent ? "Resend Code" : "GET 2FA CODE")),
+                    ),
+                    if (_otpSent) ...[
+                      const SizedBox(height: 10),
+                      TextFormField(
                       controller: _otpController,
                       decoration: const InputDecoration(labelText: 'Email Verification Code', border: OutlineInputBorder()),
                       validator: (v) => v!.isEmpty ? 'Enter code' : null,
                     ),
+                    ],
+                  ],
                   const SizedBox(height: 30),
                   Row(
                     children: [
