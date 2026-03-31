@@ -5,7 +5,11 @@
   "scripts": {
     "start:backend": "cd backend && npm start",
     "start:frontend": "flutter run -d windows",
-    "dev": "npx concurrently --kill-others \"npm run start:backend\" \"npm run start:frontend\""
+    "dev": "npx concurrently --kill-others \"npm run start:backend\" \"npm run start:frontend\"",
+    "build:backend": "cd backend && npm install && npx pkg . --output bin/gas-backend.exe --no-bytecode",
+    "build:frontend": "flutter build windows",
+    "bundle:windows": "powershell -Command \"$out='build/windows/x64/runner/Release/'; New-Item -ItemType Directory -Force -Path $out; Copy-Item backend/bin/gas-backend.exe $out; Copy-Item backend/.env $out; Write-Host 'Backend artifacts bundled successfully.'\"",
+    "build:prod": "npm run build:backend && npm run build:frontend && npm run bundle:windows && dart run msix:create"
   },
   "dependencies": {
     "dotenv": "^17.3.1",

@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'package:path/path.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +20,11 @@ import 'package:gas_store_pos/data/database_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Launch backend executable if running in release mode on Windows
+  if (Platform.isWindows && kReleaseMode) {
+    _startBackendProcess();
+  }
+
   // Initialize database factory for Desktop support if running on Windows/Linux
   if (Platform.isWindows || Platform.isLinux) {
     sqfliteFfiInit();
@@ -28,6 +35,21 @@ void main() async {
   await DatabaseService().database;
 
   runApp(const MyApp());
+}
+
+void _startBackendProcess() async {
+  try {
+    // Assumes gas-backend.exe is in the same folder as the Flutter app
+    final String backendPath = join(File(Platform.resolvedExecutable).parent.path, 'gas-backend.exe');
+    if (await File(backendPath).exists()) {
+      await Process.start(backendPath, [], mode: ProcessStartMode.detached);
+      debugPrint("Backend process started successfully.");
+    } else {
+      debugPrint("Backend executable not found at $backendPath");
+    }
+  } catch (e) {
+    debugPrint("Failed to start backend: $e");
+  }
 }
 
 class MyApp extends StatelessWidget {

@@ -43,7 +43,7 @@ async function seedAdmin() {
 
         // Define your initial credentials here
         const email = "admin@gaspos.com";
-        const password = "Admin"; // CHANGE THIS IMMEDIATELY AFTER LOGIN
+        const password = "admin123"; // CHANGE THIS IMMEDIATELY AFTER LOGIN
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const admin = new User({

@@ -68,6 +68,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^3.0.0
   flutter_launcher_icons: ^0.11.0
+  msix: ^3.7.0
 
 flutter_launcher_icons:
   android: "launcher_icon"
@@ -77,6 +78,14 @@ flutter_launcher_icons:
   windows:
     generate: true
     icon_size: 256
+
+msix_config:
+  display_name: Gas Store POS
+  publisher_display_name: Gas Store Management
+  identity_name: com.gasstore.pos
+  msix_version: 1.0.1.0
+  logo_path: assets/icon.png
+  capabilities: internetClient, privateNetworkClientServer
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

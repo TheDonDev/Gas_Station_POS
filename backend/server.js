@@ -32,6 +32,9 @@ mongoose.set('bufferCommands', false);
 
 const connectDB = async () => {
     try {
+        // Ensure strict timeout for production connection attempts
+        mongoose.set('selectionTimeoutMS', 5000);
+        
         const maskedUri = MONGO_URI.replace(/\/\/.*@/, '//****:****@');
         console.log(`📡 Attempting to connect to: ${maskedUri}`);
         await mongoose.connect(MONGO_URI, mongooseOptions);
