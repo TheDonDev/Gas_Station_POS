@@ -20,6 +20,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _isLoading = false;
+  bool _stayLoggedIn = false;
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -181,6 +182,18 @@ class _LoginScreenState extends State<LoginScreen> {
                       controller: _passwordController,
                       onToggle: () => setState(() => _obscurePassword = !_obscurePassword),
                       obscured: _obscurePassword,
+                    ),
+                    Theme(
+                      data: ThemeData(unselectedWidgetColor: Colors.white70),
+                      child: CheckboxListTile(
+                        title: const Text("Stay Logged In", style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        value: _stayLoggedIn,
+                        onChanged: (val) => setState(() => _stayLoggedIn = val ?? false),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: Colors.white,
+                        checkColor: Colors.blue.shade900,
+                      ),
                     ),
                     Align(
                       alignment: Alignment.centerRight,

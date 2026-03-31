@@ -22,7 +22,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _confirmEmailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _otpController = TextEditingController();
   String _selectedRole = 'operator';
+  bool _otpSent = false;
 
   @override
   void dispose() {
@@ -30,7 +32,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _confirmEmailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _otpController.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendOTP() async {
+    if (_emailController.text.isEmpty) return;
+    setState(() => _isLoading = true);
+    try {
+      final String baseUrl = Platform.isAndroid ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+      await http.post(
+        Uri.parse('$baseUrl/send-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': _emailController.text.trim(), 'type': 'register'}),
+      );
+      setState(() => _otpSent = true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verification code sent!')));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to send code')));
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   void _handleRegister() async {
@@ -53,6 +75,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             'email': _emailController.text.trim(),
             'password': _passwordController.text,
             'role': _selectedRole,
+            'otp': _otpController.text.trim(),
           }),
         );
 
@@ -160,6 +183,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         validator: (value) => value != _passwordController.text ? 'Passwords do not match' : null,
                       ),
                       const SizedBox(height: 40),
+                      if (!_otpSent)
+                        TextButton.icon(
+                          onPressed: _isLoading ? null : _sendOTP,
+                          icon: const Icon(Icons.send, color: Colors.white),
+                          label: const Text("Verify Email to Register", style: TextStyle(color: Colors.white)),
+                        )
+                      else
+                        _buildTextField(
+                          "Verification Code",
+                          Icons.security,
+                          controller: _otpController,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) return 'Enter code sent to email';
+                            return null;
+                          },
+                        ),
+                      const SizedBox(height: 20),
                       DropdownButtonFormField<String>(
                         value: _selectedRole,
                         dropdownColor: Colors.blueGrey.shade900,

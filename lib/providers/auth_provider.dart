@@ -19,6 +19,7 @@ class AuthProvider with ChangeNotifier {
   bool _isAuthenticated = false;
 
   AuthUser? get user => _user;
+  String? get token => _user?.token;
   bool get isAuthenticated => _isAuthenticated;
   bool get isAdmin => _user?.role == 'admin';
 

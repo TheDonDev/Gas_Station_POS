@@ -61,13 +61,17 @@ const userSchema = new mongoose.Schema({
     role: { type: String, enum: ['admin', 'operator'], default: 'operator' },
     createdAt: { type: Date, default: Date.now },
     resetPasswordToken: String,
-    resetPasswordExpires: Date
+    resetPasswordExpires: Date,
+    otpCode: String,
+    otpExpires: Date
 });
 
 const User = mongoose.model('User', userSchema);
 
 // Simple in-memory store for M-Pesa transaction results
 const transactionStatus = {};
+// In-memory store for registration OTPs (Email -> {code, expires})
+const registrationOTPs = {};
 
 const JWT_SECRET = process.env.JWT_SECRET || "super_secret_gas_pos_key";
 
@@ -99,10 +103,51 @@ const authorizeRole = (roles) => {
 
 // --- AUTHENTICATION ENDPOINTS ---
 
+// Send Verification OTP (Generic)
+app.post('/send-otp', async (req, res) => {
+    const { email, type } = req.body; // type: 'register' or 'change-password'
+    try {
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expires = Date.now() + 600000; // 10 minutes
+
+        if (type === 'register') {
+            registrationOTPs[email] = { otp, expires };
+        } else {
+            const user = await User.findOne({ email });
+            if (!user) return res.status(404).json({ error: "User not found" });
+            user.otpCode = otp;
+            user.otpExpires = expires;
+            await user.save();
+        }
+
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+        });
+
+        await transporter.sendMail({
+            to: email,
+            from: 'auth@gaspos.com',
+            subject: 'Your Verification Code',
+            text: `Your verification code is: ${otp}. It expires in 10 minutes.`
+        });
+
+        res.status(200).json({ message: "OTP sent successfully" });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to send OTP" });
+    }
+});
+
 // Register Endpoint
 app.post('/register', async (req, res) => {
-    const { email, password, role } = req.body;
+    const { email, password, role, otp } = req.body;
     try {
+        // Verify OTP
+        const stored = registrationOTPs[email];
+        if (!stored || stored.otp !== otp || Date.now() > stored.expires) {
+            return res.status(400).json({ error: "Invalid or expired verification code" });
+        }
+
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ error: "User already exists" });
@@ -120,6 +165,7 @@ app.post('/register', async (req, res) => {
         const newUser = new User({ email, password: hashedPassword, role: role || 'operator' });
         await newUser.save();
 
+        delete registrationOTPs[email];
         res.status(201).json({ message: "User registered successfully" });
     } catch (error) {
         console.error("Registration Database Error:", error.message);
@@ -229,13 +275,27 @@ app.post('/reset-password', async (req, res) => {
 
 // Change Password (Available to both Admin and Operator)
 app.post('/update-password', authenticateToken, async (req, res) => {
-    const { newPassword } = req.body;
+    const { newPassword, otp } = req.body;
     try {
         if (!newPassword || newPassword.length < 6) {
             return res.status(400).json({ error: "Password must be at least 6 characters long" });
         }
+
+        const user = await User.findById(req.user.userId);
+        
+        // 2FA for Operators
+        if (user.role === 'operator') {
+            if (!otp || user.otpCode !== otp || Date.now() > user.otpExpires) {
+                return res.status(400).json({ error: "Invalid or expired 2FA code" });
+            }
+            user.otpCode = undefined;
+            user.otpExpires = undefined;
+        }
+
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-        await User.findByIdAndUpdate(req.user.userId, { password: hashedPassword });
+        user.password = hashedPassword;
+        await user.save();
+        
         res.status(200).json({ message: "Password updated successfully" });
     } catch (error) {
         console.error("Update Password Error:", error.message);

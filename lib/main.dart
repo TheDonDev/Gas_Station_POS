@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gas_store_pos/providers/inventory_provider.dart';
 import 'package:gas_store_pos/providers/cart_provider.dart';
 import 'package:gas_store_pos/providers/customer_provider.dart';
@@ -11,6 +12,7 @@ import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/providers/theme_provider.dart';
 import 'package:gas_store_pos/screens/welcome_screen.dart';
 import 'package:gas_store_pos/screens/reset_password_screen.dart';
+import 'package:gas_store_pos/screens/dashboard_screen.dart';
 import 'package:gas_store_pos/data/database_service.dart';
 
 void main() async {
@@ -63,11 +65,34 @@ class MyApp extends StatelessWidget {
   }
 
   Widget _getInitialScreen() {
-    // Extract token from URL query parameters (useful for Web deep linking)
     final String? token = Uri.base.queryParameters['token'];
     if (token != null && token.isNotEmpty) {
       return ResetPasswordScreen(token: token);
     }
-    return const WelcomeScreen();
+
+    return FutureBuilder(
+      future: SharedPreferences.getInstance(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+        
+        final prefs = snapshot.data as SharedPreferences?;
+        final String? savedToken = prefs?.getString('auth_token');
+
+        if (savedToken != null && savedToken.isNotEmpty) {
+          // Initialize AuthProvider with saved data
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            context.read<AuthProvider>().login(
+              prefs!.getString('user_email')!,
+              prefs.getString('user_role')!,
+              savedToken,
+            );
+          });
+          return const DashboardScreen();
+        }
+        return const WelcomeScreen();
+      },
+    );
   }
 }

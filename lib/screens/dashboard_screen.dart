@@ -13,6 +13,7 @@ import 'package:gas_store_pos/screens/customer_screen.dart';
 import 'package:gas_store_pos/screens/settings_screen.dart';
 import 'package:gas_store_pos/screens/reports_screen.dart';
 import 'package:gas_store_pos/screens/login_screen.dart';
+import 'package:gas_store_pos/screens/change_password_screen.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -101,9 +102,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return AnimatedMeshBackground(
       child: Scaffold(
-      backgroundColor: isDark ? Colors.black.withOpacity(0.8) : Colors.white.withOpacity(0.92),
+      backgroundColor: isDark ? Colors.black.withOpacity(0.65) : Colors.white.withOpacity(0.8),
       appBar: AppBar(
         title: const Text('Gas Station Admin'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(onPressed: () => themeProvider.toggleTheme(), icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode)),
           const SizedBox(width: 10),
@@ -130,6 +133,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
               leading: const Icon(Icons.dashboard),
               title: const Text('Dashboard'),
               onTap: () => Navigator.pop(context),
+            ),
+            ListTile(
+              leading: const Icon(Icons.lock_reset),
+              title: const Text('Change Password'),
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
             ),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
