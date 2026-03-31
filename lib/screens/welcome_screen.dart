@@ -20,7 +20,7 @@ class WelcomeScreen extends StatelessWidget {
                 width: 450,
                 padding: const EdgeInsets.all(50),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.black.withOpacity(0.5), // Increased contrast for readability
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: Colors.white.withOpacity(0.2)),
                 ),

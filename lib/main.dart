@@ -8,6 +8,7 @@ import 'package:gas_store_pos/providers/cart_provider.dart';
 import 'package:gas_store_pos/providers/customer_provider.dart';
 import 'package:gas_store_pos/providers/printer_provider.dart';
 import 'package:gas_store_pos/providers/auth_provider.dart';
+import 'package:gas_store_pos/providers/theme_provider.dart';
 import 'package:gas_store_pos/screens/welcome_screen.dart';
 import 'package:gas_store_pos/screens/reset_password_screen.dart';
 import 'package:gas_store_pos/data/database_service.dart';
@@ -40,16 +41,23 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CustomerProvider()),
         ChangeNotifierProvider(create: (_) => PrinterProvider()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: MaterialApp(
-        title: 'Gas Store POS',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueAccent),
-          useMaterial3: true,
-          textTheme: GoogleFonts.poppinsTextTheme(),
-        ),
-        home: _getInitialScreen(),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'Gas Store POS',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeProvider.lightTheme.copyWith(
+              textTheme: GoogleFonts.poppinsTextTheme(ThemeData.light().textTheme),
+            ),
+            darkTheme: ThemeProvider.darkTheme.copyWith(
+              textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+            ),
+            themeMode: themeProvider.themeMode,
+            home: _getInitialScreen(),
+          );
+        },
       ),
     );
   }

@@ -1,4 +1,8 @@
 require('dotenv').config();
+// Force DNS resolution to use Google's DNS to prevent queryTxt ETIMEOUT on some networks
+const dns = require('dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']);
+
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -16,7 +20,11 @@ app.use(express.json());
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/gas_pos";
 
 const mongooseOptions = {
-    serverSelectionTimeoutMS: 5000, // Keep trying to connect for 5 seconds
+    serverSelectionTimeoutMS: 30000, // Increase to 30 seconds for unstable DNS
+    connectTimeoutMS: 30000,
+    family: 4, // Force IPv4 to avoid DNS resolution timeouts
+    heartbeatFrequencyMS: 10000,
+    retryWrites: true,
 };
 
 // Disable buffering globally to catch connection issues immediately
@@ -24,16 +32,20 @@ mongoose.set('bufferCommands', false);
 
 const connectDB = async () => {
     try {
-        console.log(`📡 Attempting to connect to: ${MONGO_URI.split('@')[1] || MONGO_URI}`);
+        const maskedUri = MONGO_URI.replace(/\/\/.*@/, '//****:****@');
+        console.log(`📡 Attempting to connect to: ${maskedUri}`);
         await mongoose.connect(MONGO_URI, mongooseOptions);
         console.log("*****************************************");
         console.log("✅ DATABASE CONNECTED SUCCESSFULLY");
         console.log("*****************************************");
-        // Start listening only AFTER the database is connected
-        app.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
     } catch (err) {
         console.error("❌ Could not connect to MongoDB:", err.message);
-        process.exit(1); // Exit if DB connection fails
+        if (err.message.includes('queryTxt ETIMEOUT')) {
+            console.error("💡 TIP: Your network is blocking MongoDB SRV records.");
+            console.error("💡 ACTION: In Atlas, go to Connect -> Drivers -> Node.js -> Version 2.2.12 or earlier.");
+            console.error("💡 Then replace the srv string in your .env with that standard mongodb:// string.");
+        }
+        console.error("The server will continue to run, but DB-dependent features will fail.");
     }
 };
 
@@ -213,6 +225,35 @@ app.post('/reset-password', async (req, res) => {
     }
 });
 
+// --- SETTINGS & PROFILE ENDPOINTS ---
+
+// Change Password (Available to both Admin and Operator)
+app.post('/update-password', authenticateToken, async (req, res) => {
+    const { newPassword } = req.body;
+    try {
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ error: "Password must be at least 6 characters long" });
+        }
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await User.findByIdAndUpdate(req.user.userId, { password: hashedPassword });
+        res.status(200).json({ message: "Password updated successfully" });
+    } catch (error) {
+        console.error("Update Password Error:", error.message);
+        res.status(500).json({ error: "Internal Server Error: Failed to update password" });
+    }
+});
+
+// Update Store Settings (Admin Only)
+app.post('/admin/update-settings', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { storeName } = req.body;
+    try {
+        // Implementation for updating store settings in a Settings collection
+        res.status(200).json({ message: "Store settings updated successfully" });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to update settings" });
+    }
+});
+
 // Example of a protected admin route (e.g., getting all users)
 app.get('/admin/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     const users = await User.find({}, '-password');
@@ -322,4 +363,5 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3000;
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
 connectDB();

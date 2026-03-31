@@ -19,6 +19,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   
   bool _isLoading = false;
   final _emailController = TextEditingController();
+  final _confirmEmailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   String _selectedRole = 'operator';
@@ -26,6 +27,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void dispose() {
     _emailController.dispose();
+    _confirmEmailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -97,7 +99,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 width: 450,
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15),
+                  color: Colors.black.withOpacity(0.5), // Increased contrast for white text
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: Colors.white.withOpacity(0.2)),
                 ),
@@ -123,6 +125,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         validator: (value) {
                           if (value == null || value.isEmpty) return 'Email is required';
                           if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) return 'Enter a valid email';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 20),
+                      _buildTextField(
+                        "Confirm Email Address",
+                        Icons.email_outlined,
+                        controller: _confirmEmailController,
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return 'Please confirm your email';
+                          if (value != _emailController.text) return 'Emails do not match';
                           return null;
                         },
                       ),

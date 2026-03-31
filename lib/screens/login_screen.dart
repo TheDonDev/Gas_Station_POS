@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:gas_store_pos/screens/register_screen.dart';
 import 'package:gas_store_pos/screens/dashboard_screen.dart';
@@ -51,6 +52,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response.statusCode == 200 && isJson) {
         final data = jsonDecode(response.body);
         
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('remembered_email', _emailController.text.trim());
+
         await context.read<AuthProvider>().login(
           data['email'], 
           data['role'], 
@@ -154,7 +158,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: 400,
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.15), // Increased opacity for readability
+                  color: Colors.black.withOpacity(0.5), // Increased contrast for text readability
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: Colors.white.withOpacity(0.2)),
                 ),

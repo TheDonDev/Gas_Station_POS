@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
 import 'package:gas_store_pos/providers/auth_provider.dart';
+import 'package:gas_store_pos/providers/theme_provider.dart';
 import 'package:gas_store_pos/data/database_service.dart';
 import 'package:gas_store_pos/screens/inventory_screen.dart';
 import 'package:gas_store_pos/screens/pos_screen.dart';
@@ -93,15 +94,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     final DateTime now = DateTime.now();
     final auth = context.watch<AuthProvider>();
+    final themeProvider = context.watch<ThemeProvider>();
     final String dateStr = DateFormat('EEEE, d MMMM').format(now);
+    
+    final bool isDark = themeProvider.isDarkMode;
 
     return AnimatedMeshBackground(
       child: Scaffold(
-      backgroundColor: Colors.transparent, // Required to see the animation
+      backgroundColor: isDark ? Colors.black.withOpacity(0.8) : Colors.white.withOpacity(0.92),
       appBar: AppBar(
         title: const Text('Gas Station Admin'),
         actions: [
-          IconButton(onPressed: () {}, icon: const Icon(Icons.notifications_none)),
+          IconButton(onPressed: () => themeProvider.toggleTheme(), icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode)),
           const SizedBox(width: 10),
         ],
       ),
@@ -154,8 +158,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Welcome back, Manager!', style: Theme.of(context).textTheme.headlineSmall),
-              Text(dateStr, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey)),
+              Text('Welcome back, Manager!', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+              Text(dateStr, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black87)),
               
               const SizedBox(height: 20),
 
@@ -203,7 +207,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
 
               const SizedBox(height: 30),
-              const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black87)),
               const SizedBox(height: 15),
 
               // Grid Menu
@@ -361,10 +365,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       borderRadius: BorderRadius.circular(15),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey.withOpacity(0.1)),
-          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), spreadRadius: 2, blurRadius: 5)],
+          border: Border.all(color: Colors.grey.withOpacity(0.2)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), spreadRadius: 2, blurRadius: 10)],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
