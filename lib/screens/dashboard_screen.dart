@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -102,7 +103,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return AnimatedMeshBackground(
       child: Scaffold(
-      backgroundColor: isDark ? Colors.black.withOpacity(0.65) : Colors.white.withOpacity(0.8),
+      backgroundColor: isDark ? Colors.black.withOpacity(0.45) : Colors.white.withOpacity(0.6),
       appBar: AppBar(
         title: const Text('Gas Station Admin'),
         backgroundColor: Colors.transparent,
@@ -327,7 +328,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     return PieChartSectionData(
                                       color: colors[i % colors.length],
                                       value: qty,
-                                      title: '$name\n${percentage.toStringAsFixed(0)}%',
+                                      title: '${percentage.toStringAsFixed(0)}%',
                                       radius: radius,
                                       titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                                     );
@@ -368,27 +369,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildMenuCard(BuildContext context, String title, IconData icon, Color color, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return ClipRRect(
       borderRadius: BorderRadius.circular(15),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey.withOpacity(0.2)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), spreadRadius: 2, blurRadius: 10)],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
-              child: Icon(icon, color: color, size: 30),
+          child: Container(
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.05) : Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(15),
+              border: Border.all(color: Colors.white.withOpacity(0.2)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), spreadRadius: 2, blurRadius: 10)],
             ),
-            const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+                  child: Icon(icon, color: color, size: 30),
+                ),
+                const SizedBox(height: 10),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+              ],
+            ),
+          ),
         ),
       ),
     );
