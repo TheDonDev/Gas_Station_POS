@@ -11,6 +11,41 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const winston = require('winston');
+const morgan = require('morgan');
+
+// --- LOGGER CONFIGURATION (Winston) ---
+const logger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.errors({ stack: true }),
+        winston.format.splat(),
+        winston.format.json()
+    ),
+    defaultMeta: { service: 'gas-pos-backend' },
+    transports: [
+        // Write all logs with importance level of `error` or less to `error.log`
+        new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+        // Write all logs with importance level of `info` or less to `combined.log`
+        new winston.transports.File({ filename: 'logs/combined.log' }),
+    ],
+});
+
+// If we're not in production then log to the `console` with simple format
+if (process.env.NODE_ENV !== 'production') {
+    logger.add(new winston.transports.Console({
+        format: winston.format.combine(
+            winston.format.colorize(),
+            winston.format.simple()
+        ),
+    }));
+}
+
+// Stream for Morgan to use Winston
+const morganStream = {
+    write: (text) => logger.info(text.trim()),
+};
 
 const app = express();
 app.use(cors());
@@ -18,6 +53,9 @@ app.use(express.json());
 
 // MongoDB Connection
 const MONGO_URI = process.env.MONGO_URI || "mongodb://127.0.0.1:27017/gas_pos";
+
+// HTTP Request Logging (Morgan)
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms', { stream: morganStream }));
 
 const mongooseOptions = {
     serverSelectionTimeoutMS: 30000, // Increase to 30 seconds for unstable DNS
@@ -30,32 +68,45 @@ const mongooseOptions = {
 // Disable buffering globally to catch connection issues immediately
 mongoose.set('bufferCommands', false);
 
-const connectDB = async () => {
+/**
+ * Safely masks the MongoDB URI for logging purposes.
+ * Prevents credentials from appearing in logs/stdout.
+ */
+const maskUri = (uri) => {
+    if (!uri) return 'UNDEFINED';
+    // Regex to find credentials between // and @
+    return uri.replace(/\/\/(.*):(.*)@/, '//****:****@');
+};
+
+const connectDB = async (retryCount = 0) => {
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY_MS = 5000;
+
     try {
-        // Ensure strict timeout for production connection attempts
-        mongoose.set('selectionTimeoutMS', 5000);
-        
-        const maskedUri = MONGO_URI.replace(/\/\/.*@/, '//****:****@');
-        console.log(`📡 Attempting to connect to: ${maskedUri}`);
+        const safeUri = maskUri(MONGO_URI);
+        logger.info(`📡 Attempting to connect to: ${safeUri} (Attempt ${retryCount + 1}/${MAX_RETRIES})`);
         await mongoose.connect(MONGO_URI, mongooseOptions);
-        console.log("*****************************************");
-        console.log("✅ DATABASE CONNECTED SUCCESSFULLY");
-        console.log("*****************************************");
+        logger.info("*****************************************");
+        logger.info("✅ DATABASE CONNECTED SUCCESSFULLY");
+        logger.info("*****************************************");
     } catch (err) {
-        console.error("❌ Could not connect to MongoDB:", err.message);
-        if (err.message.includes('queryTxt ETIMEOUT')) {
-            console.error("💡 TIP: Your network is blocking MongoDB SRV records.");
-            console.error("💡 ACTION: In Atlas, go to Connect -> Drivers -> Node.js -> Version 2.2.12 or earlier.");
-            console.error("💡 Then replace the srv string in your .env with that standard mongodb:// string.");
+        logger.error(`❌ Connection attempt ${retryCount + 1} failed: %s`, err.message);
+        
+        if (retryCount < MAX_RETRIES - 1) {
+            logger.info(`🔄 Retrying in ${RETRY_DELAY_MS / 1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            return connectDB(retryCount + 1);
+        } else {
+            logger.error("💥 Max retries reached. Database connection failed.");
+            logger.warn("The server will continue to run, but DB-dependent features will fail.");
         }
-        console.error("The server will continue to run, but DB-dependent features will fail.");
     }
 };
 
 // Connection Monitoring
-mongoose.connection.on('error', err => console.error("MongoDB Runtime Error:", err));
-mongoose.connection.on('disconnected', () => console.warn("MongoDB Disconnected. Attempting to reconnect..."));
-mongoose.connection.on('reconnected', () => console.log("MongoDB Reconnected"));
+mongoose.connection.on('error', err => logger.error("MongoDB Runtime Error: %O", err));
+mongoose.connection.on('disconnected', () => logger.warn("MongoDB Disconnected. Attempting to reconnect..."));
+mongoose.connection.on('reconnected', () => logger.info("MongoDB Reconnected"));
 
 // User Schema and Model
 const userSchema = new mongoose.Schema({
@@ -111,7 +162,7 @@ app.post('/send-otp', async (req, res) => {
     const { email, type } = req.body; // type: 'register' or 'change-password'
 
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        console.error("❌ EMAIL_USER or EMAIL_PASS missing in .env file");
+        logger.error("❌ EMAIL_USER or EMAIL_PASS missing in .env file");
         return res.status(500).json({ error: "Server configuration error: Email credentials missing" });
     }
 
@@ -129,7 +180,7 @@ app.post('/send-otp', async (req, res) => {
             await user.save();
         }
 
-        console.log(`📧 Attempting to send ${type} OTP to: ${email}`);
+        logger.info(`📧 Attempting to send ${type} OTP to: ${email}`);
         const transporter = nodemailer.createTransport({
             service: 'gmail',
             auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
@@ -145,10 +196,10 @@ app.post('/send-otp', async (req, res) => {
         res.status(200).json({ message: "OTP sent successfully" });
     } catch (error) {
         if (error.code === 'EAUTH') {
-            console.error("❌ SMTP Authentication Failed: Check if you are using a 16-character Gmail App Password.");
-            console.error("   Details:", error.response);
+            logger.error("❌ SMTP Authentication Failed: Check if you are using a 16-character Gmail App Password.");
+            logger.error("   Details: %O", error.response);
         } else {
-            console.error("OTP Mail Error:", error);
+            logger.error("OTP Mail Error: %O", error);
         }
         res.status(500).json({ error: "Failed to send OTP" });
     }
@@ -184,7 +235,7 @@ app.post('/register', async (req, res) => {
         delete registrationOTPs[email];
         res.status(201).json({ message: "User registered successfully" });
     } catch (error) {
-        console.error("Registration Database Error:", error.message);
+        logger.error("Registration Database Error: %s", error.message);
         res.status(500).json({ error: "Internal Server Error: Database connection failed" });
     }
 });
@@ -202,7 +253,7 @@ app.post('/login', async (req, res) => {
         const token = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
         res.status(200).json({ token, email: user.email, role: user.role });
     } catch (error) {
-        console.error("Login Database Error:", error.message);
+        logger.error("Login Database Error: %s", error.message);
         res.status(500).json({ error: "Internal Server Error: Database connection failed" });
     }
 });
@@ -256,7 +307,7 @@ app.post('/forgot-password', async (req, res) => {
         res.status(500).json({ error: "Error sending reset email" });
     }
     } catch (error) {
-        console.error("Forgot Password Database Error:", error.message);
+        logger.error("Forgot Password Database Error: %s", error.message);
         res.status(500).json({ error: "Internal Server Error: Database connection failed" });
     }
 });
@@ -282,7 +333,7 @@ app.post('/reset-password', async (req, res) => {
 
         res.status(200).json({ message: "Password has been successfully updated" });
     } catch (error) {
-        console.error("Reset Password Database Error:", error.message);
+        logger.error("Reset Password Database Error: %s", error.message);
         res.status(500).json({ error: "Internal Server Error: Database connection failed" });
     }
 });
@@ -314,7 +365,7 @@ app.post('/update-password', authenticateToken, async (req, res) => {
         
         res.status(200).json({ message: "Password updated successfully" });
     } catch (error) {
-        console.error("Update Password Error:", error.message);
+        logger.error("Update Password Error: %s", error.message);
         res.status(500).json({ error: "Internal Server Error: Failed to update password" });
     }
 });
@@ -407,7 +458,7 @@ app.post('/stkpush', generateToken, async (req, res) => {
         });
         res.status(200).json(response.data);
     } catch (error) {
-        console.error("M-Pesa STK Push Error:", error.response ? error.response.data : error.message);
+        logger.error("M-Pesa STK Push Error: %O", error.response ? error.response.data : error.message);
         res.status(error.response ? error.response.status : 500).json(
             error.response ? error.response.data : { error: "Failed to process STK push" }
         );
@@ -416,13 +467,13 @@ app.post('/stkpush', generateToken, async (req, res) => {
 
 // Callback URL (where Safaricom sends payment results)
 app.post('/callback', (req, res) => {
-    console.log('--- M-PESA CALLBACK RECEIVED ---');
+    logger.info('--- M-PESA CALLBACK RECEIVED ---');
     const { CheckoutRequestID, ResultCode } = req.body.Body.stkCallback;
     
     // Store the result (0 means Success)
     transactionStatus[CheckoutRequestID] = ResultCode === 0 ? 'SUCCESS' : 'FAILED';
     
-    console.log(`Transaction ${CheckoutRequestID} resulted in: ${transactionStatus[CheckoutRequestID]}`);
+    logger.info(`Transaction ${CheckoutRequestID} resulted in: ${transactionStatus[CheckoutRequestID]}`);
     res.status(200).send("OK");
 });
 
@@ -434,10 +485,15 @@ app.get('/status/:checkoutId', (req, res) => {
 
 // Global Error Handler to prevent HTML responses
 app.use((err, req, res, next) => {
-    console.error(err.stack);
+    logger.error("Global Error Handler: %O", err);
     res.status(500).json({ error: "Internal Server Error", message: err.message });
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Server running on port ${PORT}`));
-connectDB();
+
+const startServer = async () => {
+    await connectDB();
+    app.listen(PORT, '0.0.0.0', () => logger.info(`🚀 Server running on port ${PORT}`));
+};
+
+startServer();

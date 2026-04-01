@@ -23,6 +23,8 @@ void main() async {
   // Launch backend executable if running in release mode on Windows
   if (Platform.isWindows && kReleaseMode) {
     _startBackendProcess();
+  } else if (Platform.isWindows && kDebugMode) {
+    debugPrint("Debug mode detected: Ensure your Node.js backend is running manually on port 3000.");
   }
 
   // Initialize database factory for Desktop support if running on Windows/Linux
@@ -39,10 +41,17 @@ void main() async {
 
 void _startBackendProcess() async {
   try {
-    // Assumes gas-backend.exe is in the same folder as the Flutter app
-    final String backendPath = join(File(Platform.resolvedExecutable).parent.path, 'gas-backend.exe');
+    // Get the directory where the Flutter executable is located
+    final String exePath = File(Platform.resolvedExecutable).parent.path;
+    final String backendPath = join(exePath, 'gas-backend.exe');
+
     if (await File(backendPath).exists()) {
-      await Process.start(backendPath, [], mode: ProcessStartMode.detached);
+      await Process.start(
+        backendPath,
+        [],
+        mode: ProcessStartMode.detached,
+        workingDirectory: exePath, // Crucial for finding .env and writing logs
+      );
       debugPrint("Backend process started successfully.");
     } else {
       debugPrint("Backend executable not found at $backendPath");

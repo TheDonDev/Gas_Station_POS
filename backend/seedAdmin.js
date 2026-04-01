@@ -25,10 +25,16 @@ const mongooseOptions = {
     family: 4, // Force IPv4 to avoid DNS resolution timeouts
 };
 
+const maskUri = (uri) => {
+    if (!uri) return 'UNDEFINED';
+    return uri.replace(/\/\/(.*):(.*)@/, '//****:****@');
+};
+
 async function seedAdmin() {
     try {
-        const maskedUri = MONGO_URI.replace(/\/\/.*@/, '//****:****@');
-        console.log(`📡 Attempting to connect to: ${maskedUri}`);
+        if (!process.env.MONGO_URI) console.warn("⚠️ MONGO_URI not found in env, using fallback.");
+        const safeUri = maskUri(MONGO_URI);
+        console.log(`📡 Attempting to connect to: ${safeUri}`);
         await mongoose.connect(MONGO_URI, mongooseOptions);
         console.log("*****************************************");
         console.log("✅ DATABASE CONNECTED SUCCESSFULLY");

@@ -86,6 +86,7 @@ msix_config:
   msix_version: 1.0.1.0
   logo_path: assets/icon.png
   capabilities: internetClient, privateNetworkClientServer
+  build_dir: "build/windows/x64/runner/Release"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
