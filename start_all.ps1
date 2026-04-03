@@ -13,9 +13,21 @@ taskkill /F /IM gas_store_pos.exe /T 2>$null
 # Small delay to allow Windows to release file locks
 Start-Sleep -Seconds 1
 
+# 0. Check Local MongoDB Status (Optional if using Atlas)
+Write-Host "🍃 Checking Local MongoDB Status..." -ForegroundColor Gray
+$mongoService = Get-Service -Name "MongoDB" -ErrorAction SilentlyContinue
+if ($mongoService) {
+    if ($mongoService.Status -ne 'Running') {
+        Write-Host "Starting local MongoDB Service..." -ForegroundColor Yellow
+        Start-Service -Name "MongoDB"
+    }
+} else {
+    Write-Host "ℹ️ Local MongoDB service not found. This is normal if you are using MongoDB Atlas." -ForegroundColor Blue
+}
+
 # Kill any orphaned Node.js processes to ensure the latest server.js runs
 Write-Host "🛑 Stopping existing Node servers..." -ForegroundColor Gray
-Get-Process "node" -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process "node" -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*node.exe*" } | Stop-Process -Force
 
 # 1. Start the Node.js Backend in a new window so logs stay separated
 Write-Host "📦 Launching Backend Server..." -ForegroundColor Yellow

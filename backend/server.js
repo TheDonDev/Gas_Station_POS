@@ -405,7 +405,7 @@ const shortCode = process.env.MPESA_SHORTCODE;
 const passKey = process.env.MPESA_PASSKEY;
 
 // Production vs Sandbox URL
-const mpesaBaseUrl = process.env.NODE_ENV === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke';
+const mpesaBaseUrl = process.env.MPESA_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://api.safaricom.co.ke' : 'https://sandbox.safaricom.co.ke');
 
 // Generate Access Token Middleware
 const generateToken = async (req, res, next) => {

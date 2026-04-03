@@ -1,26 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:gas_store_pos/data/api_config.dart';
 
 class MpesaService {
-  // Your Node.js backend URL
-  // IMPORTANT: Update this whenever you restart ngrok!
-  // Check your ngrok terminal for the "Forwarding" URL.
-  // If you see ERR_NGROK_3200, it means the URL below is either 
-  // expired or your ngrok agent isn't running.
-  
-  // TODO: PASTE YOUR NEW NGROK URL HERE 
-  // Example: 'https://abcd-1234.ngrok-free.app'
-  // IMPORTANT: The "Failed host lookup" error means this URL is dead or typed wrong.
-  // Check your ngrok terminal and paste the NEW forwarding address here.
-  //
-  // FOR PRODUCTION: This will be your deployed backend URL (e.g., https://api.yourdomain.com)
-  // For local testing: Keep updating this with your current ngrok URL.
-  static const String _developmentBaseUrl = 'http://localhost:3000';
-  static const String _productionBaseUrl = 'https://api.yourgaspos.com'; // Replace with your actual production backend URL
-
-  // Use different base URL based on environment (e.g., debug vs. release)
-  final String _baseUrl = const bool.fromEnvironment('dart.vm.product') ? _productionBaseUrl : _developmentBaseUrl;
+  // Uses the central configuration to decide the URL
+  String get _baseUrl => ApiConfig.baseUrl;
   
   Future<String?> initiateStkPush(String phone, double amount) async {
     // Validation: Ensure phone starts with 254 and is 12 digits long
