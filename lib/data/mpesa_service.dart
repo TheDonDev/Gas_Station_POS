@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:gas_store_pos/data/api_config.dart';
+import 'package:gas_store_pos/data/api_config.dart'; // Import ApiConfig
 
 class MpesaService {
   // Uses the central configuration to decide the URL
+  // In debug mode, this will be localhost or 10.0.2.2 (for Android emulator).
+  // In release mode, this will be your Render production URL.
+  // The backend's /stkpush endpoint will then handle the M-Pesa API call.
   String get _baseUrl => ApiConfig.baseUrl;
   
   Future<String?> initiateStkPush(String phone, double amount) async {
@@ -15,6 +18,7 @@ class MpesaService {
 
     try {
       print("M-Pesa: Attempting STK Push to $_baseUrl/stkpush");
+      // The actual M-Pesa API call is made by the backend.
       final response = await http.post(
         Uri.parse('$_baseUrl/stkpush'),
         headers: {
@@ -32,13 +36,22 @@ class MpesaService {
         final data = jsonDecode(response.body);
         return data['CheckoutRequestID']; // Return ID for polling
       }
-      print("STK Push Failed with Status: ${response.statusCode} - ${response.body}");
+      
+      // Try to parse the detailed error from our backend
+      try {
+        final errData = jsonDecode(response.body);
+        print("❌ M-Pesa Error (${response.statusCode}): ${errData['error']}");
+        print("📝 Details: ${errData['details']}");
+        print("🌐 Target URL: ${errData['targetUrl']}");
+      } catch (_) {
+        print("STK Push Failed with Status: ${response.statusCode} - ${response.body}");
+      }
       return null;
-    } catch (e) {
-      if (e.toString().contains('SocketException') || e.toString().contains('host lookup')) {
-        print("M-Pesa DNS Error: Host lookup failed for $_baseUrl. Ensure your ngrok tunnel is active and the URL matches exactly.");
-      } else if (e.toString().contains('404')) {
-        print("M-Pesa Error: The Ngrok tunnel $_baseUrl is offline or incorrect.");
+    } catch (e) { // Catch any network-related errors
+      if (e is http.ClientException && e.message.contains('Failed host lookup')) {
+        print("M-Pesa DNS Error: Host lookup failed for $_baseUrl. Ensure your backend is running and reachable.");
+      } else if (e is http.ClientException && e.message.contains('Connection refused')) {
+        print("M-Pesa Connection Refused: Backend not running or not accessible at $_baseUrl.");
       } else {
         print("M-Pesa Connection Error: Ensure your backend is running at $_baseUrl. Error details: $e");
       }

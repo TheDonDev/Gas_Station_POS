@@ -4,6 +4,11 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Backend Logs
+logs/
+backend/logs/
+*.log
+
 # Environment variables (Security)
 .env
 .env.local
@@ -17,6 +22,12 @@ build/
 .packages
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Windows specific build and release artifacts
+windows/flutter/ephemeral/
+executable/
+*.exe
+*.msix
 
 # IDE and System files
 .idea/

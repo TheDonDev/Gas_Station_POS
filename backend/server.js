@@ -25,22 +25,14 @@ const logger = winston.createLogger({
     ),
     defaultMeta: { service: 'gas-pos-backend' },
     transports: [
-        // Write all logs with importance level of `error` or less to `error.log`
-        new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
-        // Write all logs with importance level of `info` or less to `combined.log`
-        new winston.transports.File({ filename: 'logs/combined.log' }),
+        new winston.transports.Console({
+            format: winston.format.combine(
+                winston.format.colorize(),
+                winston.format.simple()
+            ),
+        })
     ],
 });
-
-// If we're not in production then log to the `console` with simple format
-if (process.env.NODE_ENV !== 'production') {
-    logger.add(new winston.transports.Console({
-        format: winston.format.combine(
-            winston.format.colorize(),
-            winston.format.simple()
-        ),
-    }));
-}
 
 // Stream for Morgan to use Winston
 const morganStream = {
@@ -63,6 +55,7 @@ const mongooseOptions = {
     family: 4, // Force IPv4 to avoid DNS resolution timeouts
     heartbeatFrequencyMS: 10000,
     retryWrites: true,
+    maxPoolSize: 10, // Maintain up to 10 socket connections
 };
 
 // Disable buffering globally to catch connection issues immediately
@@ -288,7 +281,7 @@ app.post('/forgot-password', async (req, res) => {
         },
     });
 
-    const resetUrl = `http://localhost:8080/reset-password?token=${token}`;
+    const resetUrl = `${process.env.FRONTEND_BASE_URL || 'http://localhost:8080'}/reset-password?token=${token}`;
 
     const mailOptions = {
         to: user.email,
@@ -409,15 +402,28 @@ const mpesaBaseUrl = process.env.MPESA_BASE_URL || (process.env.NODE_ENV === 'pr
 
 // Generate Access Token Middleware
 const generateToken = async (req, res, next) => {
+    const consumerKey = process.env.MPESA_CONSUMER_KEY;
+    const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
+    const targetUrl = process.env.MPESA_BASE_URL || mpesaBaseUrl;
+
+    if (!consumerKey || !consumerSecret) {
+        logger.error("❌ M-Pesa Credentials missing in environment variables");
+        return res.status(500).json({ error: "Internal Server Error", details: "M-Pesa credentials not configured" });
+    }
+
     const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
     try {
-        const response = await axios.get(`${mpesaBaseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+        logger.info(`🔑 Requesting M-Pesa token from: ${targetUrl}/oauth/v1/generate`);
+        const response = await axios.get(`${targetUrl}/oauth/v1/generate?grant_type=client_credentials`, {
             headers: { Authorization: `Basic ${auth}` }
         });
         req.token = response.data.access_token;
         next();
     } catch (error) {
-        res.status(401).send("Failed to generate token");
+        const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
+        logger.error(`❌ M-Pesa Token Generation Failed for URL ${targetUrl}: %s`, errorMsg);
+        // Returning more details to help frontend debugging
+        res.status(401).json({ error: "Failed to generate token", details: errorMsg, targetUrl });
     }
 };
 
@@ -493,7 +499,7 @@ const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
     await connectDB();
-    app.listen(PORT, '0.0.0.0', () => logger.info(`🚀 Server running on port ${PORT}`));
+    app.listen(PORT, '0.0.0.0', () => logger.info(`🚀 Server running on port ${PORT} and connected to DB.`));
 };
 
 startServer();

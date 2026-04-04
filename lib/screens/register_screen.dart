@@ -5,6 +5,8 @@ import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
+import 'package:gas_store_pos/data/api_config.dart';
+
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -56,9 +58,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_emailController.text.isEmpty) return;
     setState(() => _isLoading = true);
     try {
-      final String baseUrl = Platform.isAndroid ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
       await http.post(
-        Uri.parse('$baseUrl/send-otp'),
+        Uri.parse('${ApiConfig.baseUrl}/send-otp'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': _emailController.text.trim(), 'type': 'register'}),
       );
@@ -76,13 +77,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
       try {
-        // Automatically handle the correct IP for Android Emulators vs Desktop/iOS
-        final String baseUrl = Platform.isAndroid 
-            ? 'http://10.0.2.2:3000' 
-            : 'http://localhost:3000';
-        
         final response = await http.post(
-          Uri.parse('$baseUrl/register'),
+          Uri.parse('${ApiConfig.baseUrl}/register'),
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',

@@ -9,6 +9,7 @@ import 'package:gas_store_pos/screens/register_screen.dart';
 import 'package:gas_store_pos/screens/dashboard_screen.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
 import 'package:gas_store_pos/providers/auth_provider.dart';
+import 'package:gas_store_pos/data/api_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -27,23 +28,9 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLogin() async {
     setState(() => _isLoading = true);
     try {
-      // Automatically handle the correct IP for Android Emulators vs Desktop/iOS
-      final String baseUrl = Platform.isAndroid 
-          ? 'http://10.0.2.2:3000' 
-          : 'http://localhost:3000';
-
-      final response = await http.post(
-        Uri.parse('$baseUrl/login'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'ngrok-skip-browser-warning': 'true', // Helpful if using ngrok
-        },
-        body: jsonEncode({
-          'email': _emailController.text.trim(),
-          'password': _passwordController.text,
-        }),
-      );
+      final response = await http.post(Uri.parse('${ApiConfig.baseUrl}/login'),
+          headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'ngrok-skip-browser-warning': 'true'},
+          body: jsonEncode({'email': _emailController.text.trim(), 'password': _passwordController.text}));
 
       if (!mounted) return;
 
@@ -128,7 +115,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:3000/forgot-password'),
+        Uri.parse('${ApiConfig.baseUrl}/forgot-password'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
       );

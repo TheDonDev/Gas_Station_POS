@@ -144,12 +144,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Logout'),
               onTap: () {
-                auth.logout();
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
+                auth.logout(); // AuthProvider update will trigger MaterialApp home switch
+                Navigator.pop(context); // Close drawer
               },
             ),
             if (auth.isAdmin)

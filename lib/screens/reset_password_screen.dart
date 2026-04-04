@@ -1,9 +1,9 @@
-import 'dart:ui';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:gas_store_pos/screens/login_screen.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
+import 'package:gas_store_pos/data/api_config.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   final String? token;
@@ -42,7 +42,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       setState(() => _isLoading = true);
       try {
         final response = await http.post(
-          Uri.parse('http://localhost:3000/reset-password'),
+          Uri.parse('${ApiConfig.baseUrl}/reset-password'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'token': token,

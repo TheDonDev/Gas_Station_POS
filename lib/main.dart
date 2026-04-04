@@ -20,10 +20,8 @@ import 'package:gas_store_pos/data/database_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Launch backend executable if running in release mode on Windows
-  if (Platform.isWindows && kReleaseMode) {
-    _startBackendProcess();
-  } else if (Platform.isWindows && kDebugMode) {
+  // In production, we connect to the Render cloud URL defined in ApiConfig.
+  if (Platform.isWindows && kDebugMode) {
     debugPrint("Debug mode detected: Ensure your Node.js backend is running manually on port 3000.");
   }
 
@@ -37,28 +35,6 @@ void main() async {
   await DatabaseService().database;
 
   runApp(const MyApp());
-}
-
-void _startBackendProcess() async {
-  try {
-    // Get the directory where the Flutter executable is located
-    final String exePath = File(Platform.resolvedExecutable).parent.path;
-    final String backendPath = join(exePath, 'gas-backend.exe');
-
-    if (await File(backendPath).exists()) {
-      await Process.start(
-        backendPath,
-        [],
-        mode: ProcessStartMode.detached,
-        workingDirectory: exePath, // Crucial for finding .env and writing logs
-      );
-      debugPrint("Backend process started successfully.");
-    } else {
-      debugPrint("Backend executable not found at $backendPath");
-    }
-  } catch (e) {
-    debugPrint("Failed to start backend: $e");
-  }
 }
 
 class MyApp extends StatelessWidget {
@@ -109,20 +85,9 @@ class MyApp extends StatelessWidget {
         }
         
         final prefs = snapshot.data as SharedPreferences?;
-        final String? savedToken = prefs?.getString('auth_token');
+        final String? sessionStr = prefs?.getString('user_session');
 
-        if (savedToken != null && savedToken.isNotEmpty) {
-          // Initialize AuthProvider with saved data
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            context.read<AuthProvider>().login(
-              prefs!.getString('user_email')!,
-              prefs.getString('user_role')!,
-              savedToken,
-            );
-          });
-          return const DashboardScreen();
-        }
-        return const WelcomeScreen();
+        return (sessionStr != null && sessionStr.isNotEmpty) ? const DashboardScreen() : const WelcomeScreen();
       },
     );
   }

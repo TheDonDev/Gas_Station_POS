@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
+import 'package:gas_store_pos/data/api_config.dart';
+
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -50,9 +52,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     setState(() => _isLoading = true);
     final auth = context.read<AuthProvider>();
     try {
-      final String baseUrl = Platform.isAndroid ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
       await http.post(
-        Uri.parse('$baseUrl/send-otp'),
+        Uri.parse('${ApiConfig.baseUrl}/send-otp'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': auth.user?.email, 'type': 'change-password'}),
       );
@@ -73,9 +74,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     final auth = context.read<AuthProvider>();
 
     try {
-      final String baseUrl = Platform.isAndroid ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
       final response = await http.post(
-        Uri.parse('$baseUrl/update-password'),
+        Uri.parse('${ApiConfig.baseUrl}/update-password'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${auth.token}',

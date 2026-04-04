@@ -29,6 +29,10 @@ if ($mongoService) {
 Write-Host "🛑 Stopping existing Node servers..." -ForegroundColor Gray
 Get-Process "node" -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*node.exe*" } | Stop-Process -Force
 
+# 0.5 Clean Flutter build to prevent stale artifacts and large git diffs
+Write-Host "🧹 Cleaning Flutter build artifacts..." -ForegroundColor Gray
+flutter clean > $null
+
 # 1. Start the Node.js Backend in a new window so logs stay separated
 Write-Host "📦 Launching Backend Server..." -ForegroundColor Yellow
 Start-Process powershell -WorkingDirectory "$PSScriptRoot\backend" -ArgumentList "-NoExit", "-Command", "npm start"

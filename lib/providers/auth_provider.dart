@@ -42,7 +42,7 @@ class AuthProvider with ChangeNotifier {
     _isAuthenticated = false;
     
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_session');
+    await prefs.remove('user_session'); // Ensure this key is cleared
     
     notifyListeners();
   }

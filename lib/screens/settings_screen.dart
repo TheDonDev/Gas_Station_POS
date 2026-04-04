@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:gas_store_pos/providers/printer_provider.dart';
 import 'package:gas_store_pos/data/backup_service.dart';
 import 'package:gas_store_pos/data/database_service.dart';
-
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
