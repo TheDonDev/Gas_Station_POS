@@ -105,7 +105,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Scaffold(
       backgroundColor: isDark ? Colors.black.withOpacity(0.45) : Colors.white.withOpacity(0.6),
       appBar: AppBar(
-        title: const Text('Gas Station Admin'),
+        title: const Text('City Gas POS'),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
