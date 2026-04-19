@@ -70,9 +70,15 @@ class _PosScreenState extends State<PosScreen> {
     }
   }
 
-  void _triggerLowGasAlert() {
-    // Playing a standard alarm sound. Ensure the asset exists if using a local file.
-    _audioPlayer.play(AssetSource('sounds/alarm.mp3')); 
+  Future<void> _triggerLowGasAlert() async {
+    try {
+      // Playing a standard alarm sound. Ensure the asset exists in pubspec.yaml and the folder.
+      await _audioPlayer.play(AssetSource('sounds/alarm.mp3'));
+    } catch (e) {
+      debugPrint("Audio Alert Error: $e");
+    }
+
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text("LOW GAS ALERT: Bulk inventory is below 50 KG!"),

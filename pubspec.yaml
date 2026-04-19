@@ -70,6 +70,15 @@ dev_dependencies:
   flutter_launcher_icons: ^0.11.0
   msix: ^3.7.0
 
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon.png"
+  windows:
+    generate: true
+    icon_size: 256
+    image_path: "assets/icon.png"
+
 msix_config:
   display_name: City Gas POS
   publisher_display_name: Gas Store Management
