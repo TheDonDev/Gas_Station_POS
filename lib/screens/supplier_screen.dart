@@ -1,10 +1,13 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:gas_store_pos/data/api_config.dart';
+import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/providers/theme_provider.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
-import 'package:gas_store_pos/data/database_service.dart';
 
 class SupplierScreen extends StatefulWidget {
   const SupplierScreen({super.key});
@@ -16,8 +19,7 @@ class SupplierScreen extends StatefulWidget {
 class _SupplierScreenState extends State<SupplierScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _deliveryAmountController = TextEditingController();
-  final _costController = TextEditingController();
+  final _phoneController = TextEditingController();
   Future<List<Map<String, dynamic>>>? _deliveriesFuture;
 
   @override
@@ -26,9 +28,18 @@ class _SupplierScreenState extends State<SupplierScreen> {
     _refreshDeliveries();
   }
 
+  Future<List<Map<String, dynamic>>> _fetchDeliveries() async {
+    final auth = context.read<AuthProvider>();
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/deliveries'),
+      headers: {'Authorization': 'Bearer ${auth.token}'},
+    );
+    return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+  }
+
   void _refreshDeliveries() {
     setState(() {
-      _deliveriesFuture = DatabaseService().getSupplierDeliveries();
+      _deliveriesFuture = _fetchDeliveries();
     });
   }
 
@@ -36,8 +47,7 @@ class _SupplierScreenState extends State<SupplierScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.blueGrey.shade900,
-        title: const Text("Log Bulk Delivery", style: TextStyle(color: Colors.white)),
+        title: const Text("Add New Supplier"),
         content: Form(
           key: _formKey,
           child: Column(
@@ -45,23 +55,12 @@ class _SupplierScreenState extends State<SupplierScreen> {
             children: [
               TextFormField(
                 controller: _nameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "Supplier Name", labelStyle: TextStyle(color: Colors.white70)),
+                decoration: const InputDecoration(labelText: "Supplier Name"),
                 validator: (val) => val!.isEmpty ? "Required" : null,
               ),
               TextFormField(
-                controller: _deliveryAmountController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "Amount Delivered (KG)", labelStyle: TextStyle(color: Colors.white70)),
-                keyboardType: TextInputType.number,
-                validator: (val) => val!.isEmpty ? "Required" : null,
-              ),
-              TextFormField(
-                controller: _costController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "Total Cost (KES)", labelStyle: TextStyle(color: Colors.white70)),
-                keyboardType: TextInputType.number,
-                validator: (val) => val!.isEmpty ? "Required" : null,
+                controller: _phoneController,
+                decoration: const InputDecoration(labelText: "Contact Phone"),
               ),
             ],
           ),
@@ -71,17 +70,30 @@ class _SupplierScreenState extends State<SupplierScreen> {
           ElevatedButton(
             onPressed: () async {
               if (_formKey.currentState!.validate()) {
-                await DatabaseService().addSupplierDelivery(
-                  _nameController.text, 
-                  double.parse(_deliveryAmountController.text),
-                  double.parse(_costController.text)
-                );
-                Navigator.pop(ctx);
-                _refreshDeliveries();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Delivery Logged Successfully")));
+                try {
+                  final auth = context.read<AuthProvider>();
+                  final response = await http.post(
+                    Uri.parse('${ApiConfig.baseUrl}/suppliers'),
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': 'Bearer ${auth.token}',
+                    },
+                    body: jsonEncode({
+                      'name': _nameController.text,
+                      'phone': _phoneController.text,
+                    }),
+                  );
+                  if (response.statusCode == 201) {
+                    Navigator.pop(ctx);
+                    _refreshDeliveries();
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("New Supplier Registered Successfully")));
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                }
               }
             },
-            child: const Text("Save Delivery"),
+            child: const Text("Save Supplier"),
           ),
         ],
       ),
@@ -131,9 +143,14 @@ class _SupplierScreenState extends State<SupplierScreen> {
                             separatorBuilder: (_, __) => const Divider(color: Colors.white10),
                             itemBuilder: (context, index) {
                               final log = logs[index];
+                              final supplier = log['supplierId'];
                               return ListTile(
-                                title: Text(log['supplier_name'] ?? 'Unknown', style: const TextStyle(color: Colors.white)),
-                                subtitle: Text("Delivery: ${log['amount']} KG • ${DateFormat('yMMMd').format(DateTime.parse(log['date']))}", style: const TextStyle(color: Colors.white70)),
+                                title: Text(supplier != null ? supplier['name'] : 'Unknown Supplier', 
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                subtitle: Text(
+                                  "Contact: ${supplier != null ? supplier['phone'] : 'N/A'}\n"
+                                  "Delivery: ${log['amount']} KG • ${DateFormat('yMMMd').format(DateTime.parse(log['date']))}", 
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12)),
                                 trailing: Text("KES ${NumberFormat("#,###").format(log['cost'])}", style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                               );
                             },
@@ -151,7 +168,7 @@ class _SupplierScreenState extends State<SupplierScreen> {
           onPressed: _showAddSupplierDialog,
           backgroundColor: Colors.indigoAccent,
           icon: const Icon(Icons.add),
-          label: const Text("Log Delivery"),
+          label: const Text("Add Supplier"),
         ),
       ),
     );

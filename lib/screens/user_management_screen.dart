@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:gas_store_pos/data/api_config.dart';
 import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/providers/theme_provider.dart';
+import 'package:gas_store_pos/data/database_service.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
 
 class UserManagementScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   final _passwordController = TextEditingController();
   String _selectedRole = 'operator';
   bool _isLoading = false;
+  String? _selectedBranchId;
   Future<List<dynamic>>? _usersFuture;
 
   @override
@@ -73,6 +75,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           'email': _emailController.text.trim(),
           'password': _passwordController.text,
           'role': _selectedRole,
+          'branchId': _selectedBranchId,
         }),
       );
 
@@ -181,6 +184,27 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     ),
                     items: ['operator', 'admin'].map((r) => DropdownMenuItem(value: r, child: Text(r.toUpperCase()))).toList(),
                     onChanged: (val) => setState(() => _selectedRole = val!),
+                  ),
+                  const SizedBox(height: 15),
+                  FutureBuilder<List<Map<String, dynamic>>>(
+                    future: DatabaseService().getBranches(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox();
+                      return DropdownButtonFormField<String>(
+                        value: _selectedBranchId,
+                        dropdownColor: isDark ? Colors.blueGrey.shade900 : Colors.white,
+                        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
+                        decoration: InputDecoration(
+                          labelText: "Assign to Branch", 
+                          labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                        ),
+                        items: snapshot.data!.map((b) => DropdownMenuItem(
+                          value: b['id'].toString(), // Use the local ID or synced MongoDB ID
+                          child: Text(b['name'] ?? 'Unknown'),
+                        )).toList(),
+                        onChanged: (val) => setState(() => _selectedBranchId = val),
+                      );
+                    },
                   ),
                   const SizedBox(height: 35),
                   ElevatedButton(

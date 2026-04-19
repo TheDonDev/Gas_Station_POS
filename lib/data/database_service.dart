@@ -32,7 +32,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'gas_store.db');
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE users (
@@ -112,7 +112,7 @@ class DatabaseService {
           // Migration to add national_id to customers table
           await db.execute('ALTER TABLE customers ADD COLUMN national_id TEXT');
         }
-        if (oldVersion < 8) {
+        if (oldVersion < 9) {
           await db.execute('''
             CREATE TABLE IF NOT EXISTS branches (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -256,10 +256,13 @@ class DatabaseService {
   }
 
   // Sales Processing
-  Future<void> processSale(TransactionRecord transaction, Map<int, Map<String, int>> stockUpdates, {double bulkGasDeduction = 0.0}) async {
+  Future<void> processSale(TransactionRecord transaction, Map<int, Map<String, int>> stockUpdates, {double bulkGasDeduction = 0.0, String? branchId}) async {
     final db = await database;
+    final Map<String, dynamic> txMap = transaction.toMap();
+    if (branchId != null) txMap['branch_id'] = branchId;
+
     await db.transaction((txn) async {
-      await txn.insert('transactions', transaction.toMap());
+      await txn.insert('transactions', txMap);
       for (var entry in stockUpdates.entries) {
         await txn.rawUpdate(
           'UPDATE products SET stock_full = stock_full + ?, stock_empty = stock_empty + ? WHERE id = ?',

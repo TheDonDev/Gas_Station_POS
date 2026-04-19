@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import 'package:gas_store_pos/data/database_service.dart';
+import 'package:gas_store_pos/data/api_config.dart';
+import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/providers/theme_provider.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
 
@@ -24,18 +27,28 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
     _refreshBranches();
   }
 
+  Future<List<Map<String, dynamic>>> _fetchBranches() async {
+    final auth = context.read<AuthProvider>();
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseUrl}/branches'),
+      headers: {'Authorization': 'Bearer ${auth.token}'},
+    );
+    return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+  }
+
   void _refreshBranches() {
     setState(() {
-      _branchesFuture = DatabaseService().getBranches();
+      _branchesFuture = _fetchBranches();
     });
   }
 
   void _showAddBranchDialog() {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.brown.shade900,
-        title: const Text("Register New Branch", style: TextStyle(color: Colors.white)),
+      builder: (ctx) => Consumer<ThemeProvider>(
+        builder: (context, theme, _) => AlertDialog(
+          backgroundColor: theme.isDarkMode ? Colors.brown.shade900 : Colors.white,
+        title: Text("Register New Branch", style: TextStyle(color: theme.isDarkMode ? Colors.white : Colors.black87)),
         content: Form(
           key: _formKey,
           child: Column(
@@ -43,14 +56,14 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
             children: [
               TextFormField(
                 controller: _branchNameController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "Branch Name (e.g. City Gas South)", labelStyle: TextStyle(color: Colors.white70)),
+                style: TextStyle(color: theme.isDarkMode ? Colors.white : Colors.black87),
+                decoration: InputDecoration(labelText: "Branch Name (e.g. City Gas South)", labelStyle: TextStyle(color: theme.isDarkMode ? Colors.white70 : Colors.black54)),
                 validator: (val) => val!.isEmpty ? "Required" : null,
               ),
               TextFormField(
                 controller: _locationController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(labelText: "City / Location", labelStyle: TextStyle(color: Colors.white70)),
+                style: TextStyle(color: theme.isDarkMode ? Colors.white : Colors.black87),
+                decoration: InputDecoration(labelText: "City / Location", labelStyle: TextStyle(color: theme.isDarkMode ? Colors.white70 : Colors.black54)),
                 validator: (val) => val!.isEmpty ? "Required" : null,
               ),
             ],
@@ -61,17 +74,35 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
           ElevatedButton(
             onPressed: () async {
               if (_formKey.currentState!.validate()) {
-                await DatabaseService().insertBranch(_branchNameController.text, _locationController.text);
-                Navigator.pop(ctx);
-                _refreshBranches();
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Branch Registered")));
+                try {
+                  final auth = context.read<AuthProvider>();
+                  final response = await http.post(
+                    Uri.parse('${ApiConfig.baseUrl}/branches'),
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': 'Bearer ${auth.token}',
+                    },
+                    body: jsonEncode({
+                      'name': _branchNameController.text,
+                      'location': _locationController.text,
+                    }),
+                  );
+                  if (response.statusCode == 201) {
+                    Navigator.pop(ctx);
+                    _refreshBranches();
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Branch Registered")));
+                  }
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                }
               }
             },
             child: const Text("Add Branch"),
           ),
         ],
-      ),
-    );
+      ), // AlertDialog
+    ), // Consumer builder
+  ); // showDialog
   }
 
   @override

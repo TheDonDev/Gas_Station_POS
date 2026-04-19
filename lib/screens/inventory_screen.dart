@@ -1,9 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:gas_store_pos/providers/inventory_provider.dart';
 import 'package:gas_store_pos/screens/edit_product_screen.dart';
+import 'package:gas_store_pos/data/api_config.dart';
+import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/data/database_service.dart';
 import 'package:intl/intl.dart';
 import 'package:gas_store_pos/data/backup_service.dart';
@@ -17,11 +21,15 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen> {
   final TextEditingController _intakeController = TextEditingController();
+  final TextEditingController _costController = TextEditingController();
   double _currentBulkKg = 0.0;
   final double _maxCapacity = 10000.0; // Placeholder for Max Storage Capacity
   bool _isLoading = true;
   final AudioPlayer _audioPlayer = AudioPlayer();
   final BackupService _backupService = BackupService();
+
+  List<dynamic> _suppliers = [];
+  String? _selectedSupplierId;
 
   @override
   void initState() {
@@ -31,6 +39,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
 
   void _refreshData() {
     _fetchBulkData();
+    _fetchSuppliers();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<InventoryProvider>(context, listen: false).loadProducts();
     });
@@ -40,6 +49,23 @@ class _InventoryScreenState extends State<InventoryScreen> {
   void dispose() {
     _audioPlayer.dispose();
     super.dispose();
+  }
+
+  Future<void> _fetchSuppliers() async {
+    final auth = context.read<AuthProvider>();
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/suppliers'),
+        headers: {'Authorization': 'Bearer ${auth.token}'},
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          _suppliers = jsonDecode(response.body);
+        });
+      }
+    } catch (e) {
+      debugPrint("Error fetching suppliers: $e");
+    }
   }
 
   Future<void> _fetchBulkData() async {
@@ -65,11 +91,31 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   void _processIntake() async {
+    if (_selectedSupplierId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Please select a supplier")));
+      return;
+    }
     final double? intake = double.tryParse(_intakeController.text);
-    if (intake == null || intake <= 0) return;
+    final double? cost = double.tryParse(_costController.text);
+    if (intake == null || intake <= 0 || cost == null) return;
+
+    final auth = context.read<AuthProvider>();
+    await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/deliveries'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ${auth.token}',
+      },
+      body: jsonEncode({
+        'supplierId': _selectedSupplierId,
+        'amount': intake,
+        'cost': cost,
+      }),
+    );
 
     await DatabaseService().updateBulkGas(intake);
     _intakeController.clear();
+    _costController.clear();
     _fetchBulkData();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -288,14 +334,32 @@ class _InventoryScreenState extends State<InventoryScreen> {
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
                         children: [
-                          const Text("Record new bulk delivery from Trailer"),
+                          DropdownButtonFormField<String>(
+                            value: _selectedSupplierId,
+                            decoration: const InputDecoration(labelText: "Select Supplier", border: OutlineInputBorder()),
+                            items: _suppliers.map((s) => DropdownMenuItem<String>(
+                              value: s['_id'],
+                              child: Text(s['name']),
+                            )).toList(),
+                            onChanged: (val) => setState(() => _selectedSupplierId = val),
+                          ),
                           const SizedBox(height: 15),
                           TextField(
                             controller: _intakeController,
                             keyboardType: TextInputType.number,
                             decoration: const InputDecoration(
                               labelText: "Intake Amount (KG)",
-                              prefixIcon: Icon(Icons.add_shopping_cart),
+                              prefixIcon: Icon(Icons.scale),
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                          const SizedBox(height: 15),
+                          TextField(
+                            controller: _costController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: "Total Cost (KES)",
+                              prefixIcon: Icon(Icons.payments),
                               border: OutlineInputBorder(),
                             ),
                           ),

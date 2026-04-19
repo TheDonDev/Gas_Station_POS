@@ -106,6 +106,7 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['admin', 'operator'], default: 'operator' },
+    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
     createdAt: { type: Date, default: Date.now },
     resetPasswordToken: String,
     resetPasswordExpires: Date,
@@ -113,7 +114,41 @@ const userSchema = new mongoose.Schema({
     otpExpires: Date
 });
 
+const transactionSchema = new mongoose.Schema({
+    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', required: true },
+    operatorEmail: String,
+    totalAmount: { type: Number, required: true },
+    paymentMethod: String,
+    items: Array,
+    date: { type: Date, default: Date.now }
+});
+
+const Transaction = mongoose.model('Transaction', transactionSchema);
 const User = mongoose.model('User', userSchema);
+
+const branchSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    location: { type: String, required: true },
+    managerEmail: String,
+    createdAt: { type: Date, default: Date.now }
+});
+const Branch = mongoose.model('Branch', branchSchema);
+
+const supplierSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    phone: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+});
+const Supplier = mongoose.model('Supplier', supplierSchema);
+
+const deliverySchema = new mongoose.Schema({
+    supplierId: { type: mongoose.Schema.Types.ObjectId, ref: 'Supplier', required: true },
+    amount: { type: Number, required: true },
+    cost: { type: Number, required: true },
+    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
+    date: { type: Date, default: Date.now }
+});
+const Delivery = mongoose.model('Delivery', deliverySchema);
 
 // Simple in-memory store for M-Pesa transaction results
 const transactionStatus = {};
@@ -235,13 +270,18 @@ app.post('/register', async (req, res) => {
 
 // Admin-only registration (bypass OTP requirement for system admins)
 app.post('/admin/register-user', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    const { email, password, role } = req.body;
+    const { email, password, role, branchId } = req.body;
     try {
         const existingUser = await User.findOne({ email });
         if (existingUser) return res.status(400).json({ error: "User already exists" });
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ email, password: hashedPassword, role: role || 'operator' });
+        const newUser = new User({ 
+            email, 
+            password: hashedPassword, 
+            role: role || 'operator',
+            branchId: branchId || null 
+        });
         await newUser.save();
 
         res.status(201).json({ message: "User created successfully by administrator" });
@@ -262,7 +302,7 @@ app.post('/login', async (req, res) => {
         }
 
         const token = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
-        res.status(200).json({ token, email: user.email, role: user.role });
+        res.status(200).json({ token, email: user.email, role: user.role, branchId: user.branchId });
     } catch (error) {
         logger.error("Login Database Error: %s", error.message);
         res.status(500).json({ error: "Internal Server Error: Database connection failed" });
@@ -396,6 +436,93 @@ app.post('/admin/update-settings', authenticateToken, authorizeRole(['admin']), 
 app.get('/admin/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     const users = await User.find({}, '-password');
     res.json(users);
+});
+
+// --- BRANCH & SUPPLIER API ---
+
+app.get('/branches', authenticateToken, async (req, res) => {
+    const branches = await Branch.find();
+    res.json(branches);
+});
+
+app.post('/branches', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    try {
+        const branch = new Branch(req.body);
+        await branch.save();
+        res.status(201).json(branch);
+    } catch (error) {
+        logger.error("Branch Save Error: %s", error.message);
+        res.status(500).json({ error: "Failed to save branch" });
+    }
+});
+
+app.get('/suppliers', authenticateToken, async (req, res) => {
+    const suppliers = await Supplier.find();
+    res.json(suppliers);
+});
+
+app.post('/suppliers', authenticateToken, async (req, res) => {
+    try {
+        const supplier = new Supplier(req.body);
+        await supplier.save();
+        res.status(201).json(supplier);
+    } catch (error) {
+        logger.error("Supplier Save Error: %s", error.message);
+        res.status(500).json({ error: "Failed to save supplier" });
+    }
+});
+
+app.get('/deliveries', authenticateToken, async (req, res) => {
+    const deliveries = await Delivery.find().populate('supplierId').sort({ date: -1 });
+    res.json(deliveries);
+});
+
+app.post('/deliveries', authenticateToken, async (req, res) => {
+    const { supplierId, amount, cost } = req.body;
+    const delivery = new Delivery({
+        supplierId,
+        amount,
+        cost,
+        date: new Date()
+    });
+    await delivery.save();
+    res.status(201).json(delivery);
+});
+
+// --- TRANSACTION CLOUD SYNC API ---
+
+app.post('/transactions', authenticateToken, async (req, res) => {
+    try {
+        const transaction = new Transaction({
+            ...req.body,
+            operatorEmail: req.user.email
+        });
+        await transaction.save();
+        res.status(201).json(transaction);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to sync transaction" });
+    }
+});
+
+app.get('/admin/branch-metrics/:branchId', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    try {
+        const branchId = req.params.branchId;
+        const transactions = await Transaction.find({ branchId });
+        
+        // Calculate Metrics
+        const totalSales = transactions.reduce((acc, curr) => acc + curr.totalAmount, 0);
+        
+        // Get Recent Deliveries (Trailer Intake) for this branch
+        const recentDeliveries = await Delivery.find({ branchId }).populate('supplierId').limit(5).sort({ date: -1 });
+
+        res.json({ 
+            totalSales, 
+            transactionCount: transactions.length,
+            recentDeliveries 
+        });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch detailed metrics" });
+    }
 });
 
 // Delete User (Admin Only)

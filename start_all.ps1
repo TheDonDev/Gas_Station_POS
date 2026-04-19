@@ -8,10 +8,18 @@ Write-Host "[START] Starting Gas Station POS Full Stack..." -ForegroundColor Cya
 # Prevent "cannot open for writing" error by closing any running instances of the app
 Write-Host "[CLEAN] Cleaning up previous instances..." -ForegroundColor Gray
 # Use taskkill to aggressively release file handles
-taskkill /F /IM gas_store_pos.exe /T 2>$null
+taskkill /F /IM gas_store_pos.exe /FI "STATUS eq RUNNING" /T 2>$null
 
 # Small delay to allow Windows to release file locks
 Start-Sleep -Seconds 1
+
+# 0.5 Clean Flutter build to prevent stale artifacts and large git diffs
+Write-Host "[CLEAN] Cleaning Flutter build artifacts..." -ForegroundColor Gray
+try {
+    flutter clean
+} catch {
+    Write-Host "⚠️ Warning: Flutter clean failed. Ensure no folders in 'build' are open in File Explorer or other terminals." -ForegroundColor Yellow
+}
 
 # 0. Check Local MongoDB Status (Optional if using Atlas)
 Write-Host "[DB] Checking Local MongoDB Status..." -ForegroundColor Gray
@@ -28,10 +36,6 @@ if ($mongoService) {
 # Kill any orphaned Node.js processes to ensure the latest server.js runs
 Write-Host "[STOP] Stopping existing Node servers..." -ForegroundColor Gray
 Get-Process "node" -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*node.exe*" } | Stop-Process -Force
-
-# 0.5 Clean Flutter build to prevent stale artifacts and large git diffs
-Write-Host "[CLEAN] Cleaning Flutter build artifacts..." -ForegroundColor Gray
-flutter clean > $null
 
 # 1. Start the Node.js Backend in a new window so logs stay separated
 Write-Host "[BACKEND] Launching Backend Server..." -ForegroundColor Yellow

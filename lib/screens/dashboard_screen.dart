@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
+import 'package:gas_store_pos/data/api_config.dart';
 import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/providers/theme_provider.dart';
 import 'package:gas_store_pos/data/database_service.dart';
@@ -38,6 +40,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   
   Future<List<Map<String, dynamic>>>? _topProductsFuture;
   Future<double>? _totalRevenueFuture;
+  Future<List<Map<String, dynamic>>>? _branchesFuture;
+  Future<Map<String, dynamic>>? _branchMetricsFuture;
+  String? _selectedBranchId;
   Key _chartKey = UniqueKey();
 
   final List<Map<String, dynamic>> _bannerData = [
@@ -87,8 +92,42 @@ class _DashboardScreenState extends State<DashboardScreen> {
     setState(() {
       _topProductsFuture = DatabaseService().getTopProducts();
       _totalRevenueFuture = DatabaseService().getTotalRevenue();
+      _branchesFuture = _fetchBranches();
+      _branchMetricsFuture = null;
       _chartKey = UniqueKey(); // Ensures the chart widget resets visually on data refresh
     });
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchBranches() async {
+    try {
+      final auth = context.read<AuthProvider>();
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/branches'),
+        headers: {'Authorization': 'Bearer ${auth.token}'},
+      );
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+      }
+    } catch (e) {
+      debugPrint("Error fetching branches: $e");
+    }
+    return [];
+  }
+
+  Future<Map<String, dynamic>> _fetchBranchMetrics(String branchId) async {
+    try {
+      final auth = context.read<AuthProvider>();
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/admin/branch-metrics/$branchId'), // Metrics + Recent Deliveries
+        headers: {'Authorization': 'Bearer ${auth.token}'},
+      );
+      if (response.statusCode == 200) {
+        return Map<String, dynamic>.from(jsonDecode(response.body));
+      }
+    } catch (e) {
+      debugPrint("Error fetching branch metrics: $e");
+    }
+    return {"totalSales": 0, "transactionCount": 0, "recentDeliveries": []};
   }
 
   @override
@@ -155,7 +194,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Icon(Icons.store, color: Colors.white, size: 40),
                   SizedBox(height: 10),
-                  Text('My Gas Store', style: TextStyle(color: Colors.white, fontSize: 20)),
+                  Text('City Gas Store', style: TextStyle(color: Colors.white, fontSize: 20)),
                   Text('Version 1.0.0', style: TextStyle(color: Colors.white70)),
                 ],
               ),
@@ -190,6 +229,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (auth.isAdmin) ...[
+                _buildSectionTitle("Branch Filter"),
+                const SizedBox(height: 10),
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: _branchesFuture,
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox();
+                    return DropdownButtonFormField<String>(
+                      value: _selectedBranchId,
+                      hint: const Text("Select Branch to View Metrics"),
+                      items: snapshot.data!.map((b) => DropdownMenuItem<String>(
+                        value: b['_id']?.toString(),
+                        child: Text(b['name'] ?? 'Unknown'),
+                      )).toList(),
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedBranchId = val;
+                          if (val != null) {
+                            _branchMetricsFuture = _fetchBranchMetrics(val);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+                if (_selectedBranchId != null) ...[
+                  const SizedBox(height: 15),
+                  FutureBuilder<Map<String, dynamic>>(
+                    future: _branchMetricsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const LinearProgressIndicator();
+                      }
+                      final metrics = snapshot.data ?? {"totalSales": 0, "transactionCount": 0, "recentDeliveries": []};
+                      final List recentDeliveries = metrics['recentDeliveries'] ?? [];
+
+                      return Card(
+                        color: Colors.blueGrey.withOpacity(0.2),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                children: [
+                                  _buildMetricMini(metrics['totalSales'], "Revenue", Colors.greenAccent),
+                                  const VerticalDivider(color: Colors.white24),
+                                  _buildMetricMini(metrics['transactionCount'], "Orders", Colors.blueAccent),
+                                ],
+                              ),
+                              if (recentDeliveries.isNotEmpty) ...[
+                                const Divider(color: Colors.white10),
+                                const Text("Recent Trailer Intakes", style: TextStyle(color: Colors.white54, fontSize: 12)),
+                                ...recentDeliveries.map((d) => ListTile(
+                                  dense: true,
+                                  title: Text(d['supplierId']?['name'] ?? 'Unknown', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                                  subtitle: Text("${d['amount']} KG", style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                  trailing: Text(DateFormat('HH:mm').format(DateTime.parse(d['date'])), style: const TextStyle(color: Colors.white38, fontSize: 10)),
+                                )).toList(),
+                              ]
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+                const SizedBox(height: 20),
+              ],
               Text('Welcome back, Manager!', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
               Text(dateStr, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white70 : Colors.black87)),
               
@@ -439,4 +548,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
+  Widget _buildMetricMini(dynamic value, String label, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+        Text(value is double ? "KES ${NumberFormat("#,###").format(value)}" : "$value", 
+          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16)),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(String title) => Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.blueGrey));
 }
