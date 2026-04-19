@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:gas_store_pos/providers/auth_provider.dart';
 import 'package:gas_store_pos/providers/theme_provider.dart';
@@ -14,7 +16,11 @@ import 'package:gas_store_pos/screens/customer_screen.dart';
 import 'package:gas_store_pos/screens/settings_screen.dart';
 import 'package:gas_store_pos/screens/reports_screen.dart';
 import 'package:gas_store_pos/screens/login_screen.dart';
+import 'package:gas_store_pos/screens/welcome_screen.dart';
 import 'package:gas_store_pos/screens/change_password_screen.dart';
+import 'package:gas_store_pos/screens/supplier_screen.dart';
+import 'package:gas_store_pos/screens/branch_management_screen.dart';
+import 'package:gas_store_pos/screens/user_management_screen.dart';
 import 'package:gas_store_pos/widgets/animated_background.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -92,6 +98,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
+  void _showLogoutConfirmation(BuildContext context, AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Confirm Logout"),
+        content: const Text("Are you sure you want to end your session?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('user_session'); 
+              auth.logout(); 
+              if (ctx.mounted) {
+                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const WelcomeScreen()), (route) => false);
+              }
+            },
+            child: const Text("Logout", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final DateTime now = DateTime.now();
@@ -143,10 +173,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Logout'),
-              onTap: () {
-                auth.logout(); // AuthProvider update will trigger MaterialApp home switch
-                Navigator.pop(context); // Close drawer
-              },
+              onTap: () => _showLogoutConfirmation(context, auth),
             ),
             if (auth.isAdmin)
             ListTile(
@@ -228,6 +255,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _buildMenuCard(context, "Bulk Inventory", Icons.storage, Colors.orange, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScreen())).then((_) => _refreshDashboard())),
                   _buildMenuCard(context, "Sales Ledger", Icons.table_chart, Colors.purple, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionHistoryScreen())).then((_) => _refreshDashboard())),
                   _buildMenuCard(context, "Retailer Directory", Icons.groups, Colors.teal, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerScreen())).then((_) => _refreshDashboard())),
+                  _buildMenuCard(context, "Manage Suppliers", Icons.local_shipping, Colors.indigo, () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SupplierScreen()),
+                  )),
+                  if (auth.isAdmin)
+                    _buildMenuCard(context, "Manage Branches", Icons.add_business, Colors.brown, () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const BranchManagementScreen()),
+                    )),
+                  if (auth.isAdmin)
+                    _buildMenuCard(context, "User Management", Icons.person_add, Colors.blueGrey, () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const UserManagementScreen()),
+                    )),
                   if (auth.isAdmin)
                     _buildMenuCard(context, "Reports", Icons.bar_chart, Colors.redAccent, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsScreen()))),
                 ],

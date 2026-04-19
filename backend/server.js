@@ -233,6 +233,24 @@ app.post('/register', async (req, res) => {
     }
 });
 
+// Admin-only registration (bypass OTP requirement for system admins)
+app.post('/admin/register-user', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const { email, password, role } = req.body;
+    try {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) return res.status(400).json({ error: "User already exists" });
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newUser = new User({ email, password: hashedPassword, role: role || 'operator' });
+        await newUser.save();
+
+        res.status(201).json({ message: "User created successfully by administrator" });
+    } catch (error) {
+        logger.error("Admin User Creation Error: %s", error.message);
+        res.status(500).json({ error: "Internal Server Error: Failed to create user" });
+    }
+});
+
 // Login Endpoint
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
@@ -378,6 +396,25 @@ app.post('/admin/update-settings', authenticateToken, authorizeRole(['admin']), 
 app.get('/admin/users', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     const users = await User.find({}, '-password');
     res.json(users);
+});
+
+// Delete User (Admin Only)
+app.delete('/admin/users/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    try {
+        const userToDelete = await User.findById(req.params.id);
+        if (!userToDelete) return res.status(404).json({ error: "User not found" });
+        
+        // Prevent self-deletion
+        if (userToDelete._id.toString() === req.user.userId) {
+            return res.status(400).json({ error: "You cannot delete your own account" });
+        }
+
+        await User.findByIdAndDelete(req.params.id);
+        res.status(200).json({ message: "User deleted successfully" });
+    } catch (error) {
+        logger.error("Delete User Error: %s", error.message);
+        res.status(500).json({ error: "Internal Server Error: Failed to delete user" });
+    }
 });
 
 // Health Check Endpoint to verify server and DB status

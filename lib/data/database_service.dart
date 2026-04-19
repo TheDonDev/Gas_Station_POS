@@ -32,7 +32,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'gas_store.db');
     return await openDatabase(
       path,
-      version: 4,
+      version: 8,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE users (
@@ -80,6 +80,22 @@ class DatabaseService {
             payment_method TEXT
           )
         ''');
+        await db.execute('''
+          CREATE TABLE branches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            location TEXT
+          )
+        ''');
+        await db.execute('''
+          CREATE TABLE supplier_deliveries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            supplier_name TEXT,
+            amount REAL,
+            cost REAL,
+            date TEXT
+          )
+        ''');
         // Initialize bulk storage and prices
         await db.insert('app_settings', {'key': 'bulk_gas_kg', 'value': 0.0});
         await db.insert('app_settings', {'key': 'price_6kg', 'value': 600.0});
@@ -95,6 +111,21 @@ class DatabaseService {
         if (oldVersion < 3) {
           // Migration to add national_id to customers table
           await db.execute('ALTER TABLE customers ADD COLUMN national_id TEXT');
+        }
+        if (oldVersion < 8) {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS branches (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT,
+              location TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS supplier_deliveries (
+              id INTEGER PRIMARY KEY AUTOINCREMENT, 
+              supplier_name TEXT, amount REAL, cost REAL, date TEXT
+            )
+          ''');
         }
       },
     );
@@ -306,5 +337,40 @@ class DatabaseService {
     }
 
     return aggregation.entries.map((e) => {'name': e.key, 'qty': e.value}).toList();
+  }
+
+  // Branch Management
+  Future<List<Map<String, dynamic>>> getBranches() async {
+    final db = await database;
+    return await db.query('branches');
+  }
+
+  Future<void> insertBranch(String name, String location) async {
+    final db = await database;
+    await db.insert('branches', {'name': name, 'location': location});
+  }
+
+  // Supplier Management
+  Future<List<Map<String, dynamic>>> getSupplierDeliveries() async {
+    final db = await database;
+    return await db.query('supplier_deliveries', orderBy: 'date DESC');
+  }
+
+  Future<void> addSupplierDelivery(String name, double amount, double cost) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      // Log the delivery
+      await txn.insert('supplier_deliveries', {
+        'supplier_name': name,
+        'amount': amount,
+        'cost': cost,
+        'date': DateTime.now().toIso8601String(),
+      });
+      // Update bulk inventory
+      await txn.rawUpdate(
+        'UPDATE app_settings SET value = value + ? WHERE key = "bulk_gas_kg"',
+        [amount],
+      );
+    });
   }
 }

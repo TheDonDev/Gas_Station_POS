@@ -25,6 +25,29 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedEmail();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadSavedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedEmail = prefs.getString('remembered_email');
+    if (savedEmail != null && mounted) {
+      setState(() {
+        _emailController.text = savedEmail;
+      });
+    }
+  }
+
   void _handleLogin() async {
     setState(() => _isLoading = true);
     try {
@@ -43,16 +66,30 @@ class _LoginScreenState extends State<LoginScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('remembered_email', _emailController.text.trim());
 
+        if (_stayLoggedIn) {
+          await prefs.setString('user_session', jsonEncode({
+            'email': data['email'],
+            'role': data['role'],
+            'token': data['token'],
+            'login_time': DateTime.now().millisecondsSinceEpoch,
+          }));
+        } else {
+          await prefs.remove('user_session');
+        }
+
         await context.read<AuthProvider>().login(
           data['email'], 
           data['role'], 
           data['token']
         );
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const DashboardScreen()),
-        );
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const DashboardScreen()),
+            (route) => false,
+          );
+        }
       } else if (isJson) {
         final error = jsonDecode(response.body)['error'] ?? 'Invalid email or password';
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));

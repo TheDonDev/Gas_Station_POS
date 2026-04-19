@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:path/path.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -64,18 +65,57 @@ class MyApp extends StatelessWidget {
               textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
             ),
             themeMode: themeProvider.themeMode,
-            home: _getInitialScreen(),
+            home: Consumer<AuthProvider>(
+              builder: (context, auth, _) {
+                if (auth.isAuthenticated) {
+                  return const DashboardScreen();
+                }
+                return _getInitialScreen(auth);
+              },
+            ),
           );
         },
       ),
     );
   }
 
-  Widget _getInitialScreen() {
+  Widget _getInitialScreen(AuthProvider auth) {
     final String? token = Uri.base.queryParameters['token'];
     if (token != null && token.isNotEmpty) {
       return ResetPasswordScreen(token: token);
     }
-    return const WelcomeScreen();
+
+    return FutureBuilder<SharedPreferences>(
+      future: SharedPreferences.getInstance(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        final prefs = snapshot.data!;
+        final sessionStr = prefs.getString('user_session');
+
+        if (sessionStr != null && sessionStr.isNotEmpty) {
+          final sessionData = jsonDecode(sessionStr);
+          
+          // Session Timeout Check (24 Hours)
+          final int loginTime = sessionData['login_time'] ?? 0;
+          final int currentTime = DateTime.now().millisecondsSinceEpoch;
+          const int twentyFourHoursMs = 24 * 60 * 60 * 1000;
+
+          if (currentTime - loginTime > twentyFourHoursMs) {
+            prefs.remove('user_session');
+            return const WelcomeScreen();
+          }
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            auth.login(sessionData['email'], sessionData['role'], sessionData['token']);
+          });
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        }
+
+        return const WelcomeScreen();
+      },
+    );
   }
 }
