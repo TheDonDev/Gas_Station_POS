@@ -76,19 +76,6 @@ class MyApp extends StatelessWidget {
     if (token != null && token.isNotEmpty) {
       return ResetPasswordScreen(token: token);
     }
-
-    return FutureBuilder(
-      future: SharedPreferences.getInstance(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-        
-        final prefs = snapshot.data as SharedPreferences?;
-        final String? sessionStr = prefs?.getString('user_session');
-
-        return (sessionStr != null && sessionStr.isNotEmpty) ? const DashboardScreen() : const WelcomeScreen();
-      },
-    );
+    return const WelcomeScreen();
   }
 }
