@@ -88,10 +88,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  void _refreshDashboard() {
+  void _refreshDashboard([String? branchId]) {
     setState(() {
-      _topProductsFuture = DatabaseService().getTopProducts();
-      _totalRevenueFuture = DatabaseService().getTotalRevenue();
+      _topProductsFuture = DatabaseService().getTopProducts(branchId: branchId);
+      _totalRevenueFuture = DatabaseService().getTotalRevenue(branchId: branchId);
       _branchesFuture = _fetchBranches();
       _branchMetricsFuture = null;
       _chartKey = UniqueKey(); // Ensures the chart widget resets visually on data refresh
@@ -125,7 +125,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Map<String, dynamic>.from(jsonDecode(response.body));
       }
     } catch (e) {
-      debugPrint("Error fetching branch metrics: $e");
+      debugPrint("Error fetching branch metrics: $e"); // Log for debugging
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Could not connect to backend. Is the server running?")));
+      }
+
     }
     return {"totalSales": 0, "transactionCount": 0, "recentDeliveries": []};
   }
@@ -244,6 +248,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: Text(b['name'] ?? 'Unknown'),
                       )).toList(),
                       onChanged: (val) {
+                        _refreshDashboard(val);
                         setState(() {
                           _selectedBranchId = val;
                           if (val != null) {
@@ -286,7 +291,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ...recentDeliveries.map((d) => ListTile(
                                   dense: true,
                                   title: Text(d['supplierId']?['name'] ?? 'Unknown', style: const TextStyle(color: Colors.white, fontSize: 13)),
-                                  subtitle: Text("${d['amount']} KG", style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                                  subtitle: Text("${(d['amount'] / 1000).toStringAsFixed(3)} Tons", style: const TextStyle(color: Colors.white70, fontSize: 11)),
                                   trailing: Text(DateFormat('HH:mm').format(DateTime.parse(d['date'])), style: const TextStyle(color: Colors.white38, fontSize: 10)),
                                 )).toList(),
                               ]
@@ -364,10 +369,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   _buildMenuCard(context, "Bulk Inventory", Icons.storage, Colors.orange, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScreen())).then((_) => _refreshDashboard())),
                   _buildMenuCard(context, "Sales Ledger", Icons.table_chart, Colors.purple, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionHistoryScreen())).then((_) => _refreshDashboard())),
                   _buildMenuCard(context, "Retailer Directory", Icons.groups, Colors.teal, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerScreen())).then((_) => _refreshDashboard())),
-                  _buildMenuCard(context, "Manage Suppliers", Icons.local_shipping, Colors.indigo, () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SupplierScreen()),
-                  )),
+                  if (auth.isAdmin)
+                    _buildMenuCard(context, "Manage Suppliers", Icons.local_shipping, Colors.indigo, () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SupplierScreen()),
+                    )),
                   if (auth.isAdmin)
                     _buildMenuCard(context, "Manage Branches", Icons.add_business, Colors.brown, () => Navigator.push(
                       context,

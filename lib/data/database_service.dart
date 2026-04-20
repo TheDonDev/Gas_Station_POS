@@ -32,7 +32,7 @@ class DatabaseService {
     String path = join(await getDatabasesPath(), 'gas_store.db');
     return await openDatabase(
       path,
-      version: 9,
+      version: 10, // Increment version to trigger onUpgrade
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE users (
@@ -112,7 +112,7 @@ class DatabaseService {
           // Migration to add national_id to customers table
           await db.execute('ALTER TABLE customers ADD COLUMN national_id TEXT');
         }
-        if (oldVersion < 9) {
+        if (oldVersion < 10) { // New version check
           await db.execute('''
             CREATE TABLE IF NOT EXISTS branches (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,6 +126,9 @@ class DatabaseService {
               supplier_name TEXT, amount REAL, cost REAL, date TEXT
             )
           ''');
+          // Add the missing branch_id to transactions table
+          await db.execute('ALTER TABLE transactions ADD COLUMN branch_id TEXT DEFAULT "local_branch"');
+
         }
       },
     );
@@ -278,9 +281,16 @@ class DatabaseService {
     });
   }
 
-  Future<List<Map<String, dynamic>>> getAllTransactions() async {
+  Future<List<Map<String, dynamic>>> getAllTransactions({String? branchId}) async {
     final db = await database;
-    // Fetch transactions ordered by most recent first
+    
+    if (branchId != null) {
+      return await db.query(
+        'transactions', 
+        where: 'branch_id = ?', 
+        whereArgs: [branchId], 
+        orderBy: 'date DESC');
+    }
     return await db.query('transactions', orderBy: 'date DESC');
   }
 
@@ -317,16 +327,27 @@ class DatabaseService {
     ''');
   }
 
-  Future<double> getTotalRevenue() async {
+  Future<double> getTotalRevenue({String? branchId}) async {
     final db = await database;
-    final result = await db.rawQuery('SELECT SUM(total_amount) as total FROM transactions');
+    final List<Map<String, dynamic>> result;
+    if (branchId != null) {
+      result = await db.rawQuery('SELECT SUM(total_amount) as total FROM transactions WHERE branch_id = ?', [branchId]);
+    } else {
+      result = await db.rawQuery('SELECT SUM(total_amount) as total FROM transactions');
+    }
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
-  Future<List<Map<String, dynamic>>> getTopProducts() async {
+  Future<List<Map<String, dynamic>>> getTopProducts({String? branchId}) async {
     final db = await database;
-    final List<Map<String, dynamic>> txs = await db.query('transactions');
+    final List<Map<String, dynamic>> txs;
     
+    if (branchId != null) {
+      txs = await db.query('transactions', where: 'branch_id = ?', whereArgs: [branchId]);
+    } else {
+      txs = await db.query('transactions');
+    }
+
     final Map<String, double> aggregation = {};
     for (var tx in txs) {
       try {

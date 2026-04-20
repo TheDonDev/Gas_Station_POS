@@ -22,6 +22,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   final _passwordController = TextEditingController();
   String _selectedRole = 'operator';
   bool _isLoading = false;
+  bool _obscurePassword = true;
   String? _selectedBranchId;
   Future<List<dynamic>>? _usersFuture;
 
@@ -105,8 +106,15 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     final themeProvider = context.watch<ThemeProvider>();
     final bool isDark = themeProvider.isDarkMode;
+
+    if (!auth.isAdmin) {
+      return const Scaffold(
+        body: Center(child: Text("Access Denied: Administrators Only")),
+      );
+    }
 
     return AnimatedMeshBackground(
       child: Scaffold(
@@ -169,8 +177,12 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     decoration: InputDecoration(
                       labelText: "Temporary Password", 
                       labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
+                      suffixIcon: IconButton(
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: isDark ? Colors.white70 : Colors.black54),
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      ),
                     ),
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     validator: (val) => val!.length < 6 ? "Minimum 6 characters" : null,
                   ),
                   const SizedBox(height: 15),
@@ -186,8 +198,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                     onChanged: (val) => setState(() => _selectedRole = val!),
                   ),
                   const SizedBox(height: 15),
-                  FutureBuilder<List<Map<String, dynamic>>>(
-                    future: DatabaseService().getBranches(),
+                  FutureBuilder<List<dynamic>>(
+                    future: _fetchBranchesList(),
                     builder: (context, snapshot) {
                       if (!snapshot.hasData) return const SizedBox();
                       return DropdownButtonFormField<String>(
@@ -199,7 +211,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                           labelStyle: TextStyle(color: isDark ? Colors.white70 : Colors.black54),
                         ),
                         items: snapshot.data!.map((b) => DropdownMenuItem(
-                          value: b['id'].toString(), // Use the local ID or synced MongoDB ID
+                          value: b['_id'].toString(), 
                           child: Text(b['name'] ?? 'Unknown'),
                         )).toList(),
                         onChanged: (val) => setState(() => _selectedBranchId = val),
@@ -226,6 +238,20 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         ),
       ),
     );
+  }
+
+  Future<List<dynamic>> _fetchBranchesList() async {
+    try {
+      final auth = context.read<AuthProvider>();
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/branches'),
+        headers: {'Authorization': 'Bearer ${auth.token}'},
+      );
+      if (response.statusCode == 200) return jsonDecode(response.body);
+    } catch (e) {
+      debugPrint("Error fetching branches: $e");
+    }
+    return [];
   }
 
   Widget _buildUserList(bool isDark) {

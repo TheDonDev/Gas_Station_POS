@@ -82,7 +82,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       _audioPlayer.play(AssetSource('sounds/warning.mp3'));
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("CRITICAL LEVEL: Bulk Storage is below ${threshold.toStringAsFixed(0)} KG (15%)"),
+          content: Text("CRITICAL LEVEL: Bulk Storage is below ${(threshold / 1000).toStringAsFixed(2)} Tons (15%)"),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
         ),
@@ -96,7 +96,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       return;
     }
     final double? intake = double.tryParse(_intakeController.text);
-    final double? cost = double.tryParse(_costController.text);
+    final double? cost = double.tryParse(_costController.text); // Cost is still KES
     if (intake == null || intake <= 0 || cost == null) return;
 
     final auth = context.read<AuthProvider>();
@@ -108,7 +108,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       },
       body: jsonEncode({
         'supplierId': _selectedSupplierId,
-        'amount': intake,
+        'amount': intake * 1000, // Convert Tons to KG for storage
         'cost': cost,
       }),
     );
@@ -125,7 +125,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   void _showEditDialog() {
-    final controller = TextEditingController(text: _currentBulkKg.toString());
+    // Convert KG to Tons for display in the dialog
+    final controller = TextEditingController(text: (_currentBulkKg / 1000).toStringAsFixed(3));
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -134,7 +135,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
           controller: controller,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
-            labelText: "Current Amount (KG)",
+            labelText: "Current Amount (Tons)",
             border: OutlineInputBorder(),
           ),
         ),
@@ -142,9 +143,10 @@ class _InventoryScreenState extends State<InventoryScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
           ElevatedButton(
             onPressed: () async {
-              final double? amount = double.tryParse(controller.text);
-              if (amount != null) {
-                await DatabaseService().setBulkGasKg(amount);
+              final double? amountTons = double.tryParse(controller.text);
+              if (amountTons != null) {
+                // Convert Tons to KG before saving
+                await DatabaseService().setBulkGasKg(amountTons * 1000);
                 _fetchBulkData();
                 if (mounted) {
                   Navigator.pop(context);
@@ -287,7 +289,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const Text("Current Bulk Level"),
-                                    Text("${NumberFormat("#,###.00").format(_currentBulkKg)} KG", 
+                                    Text("${NumberFormat("#,###.###").format(_currentBulkKg / 1000)} Tons", 
                                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue)),
                                   ],
                                 ),
@@ -317,7 +319,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             children: [
                               Text("${((_currentBulkKg / _maxCapacity) * 100).toStringAsFixed(1)}% Full", 
                                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                              Text("Capacity: ${NumberFormat("#,###").format(_maxCapacity)} KG", 
+                              Text("Capacity: ${NumberFormat("#,###").format(_maxCapacity / 1000)} Tons", 
                                 style: const TextStyle(fontSize: 12, color: Colors.grey)),
                             ],
                           ),

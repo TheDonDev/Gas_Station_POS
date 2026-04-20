@@ -42,13 +42,38 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
     });
   }
 
-  void _showAddBranchDialog() {
+  Future<void> _deleteBranch(String id) async {
+    final auth = context.read<AuthProvider>();
+    try {
+      final response = await http.delete(
+        Uri.parse('${ApiConfig.baseUrl}/branches/$id'),
+        headers: {'Authorization': 'Bearer ${auth.token}'},
+      );
+      if (response.statusCode == 200) {
+        _refreshBranches();
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Branch Deleted")));
+      }
+    } catch (e) {
+      debugPrint("Delete error: $e");
+    }
+  }
+
+  void _showBranchDialog({Map<String, dynamic>? branch}) {
+    if (branch != null) {
+      _branchNameController.text = branch['name'];
+      _locationController.text = branch['location'];
+    } else {
+      _branchNameController.clear();
+      _locationController.clear();
+    }
+
     showDialog(
       context: context,
       builder: (ctx) => Consumer<ThemeProvider>(
         builder: (context, theme, _) => AlertDialog(
           backgroundColor: theme.isDarkMode ? Colors.brown.shade900 : Colors.white,
-        title: Text("Register New Branch", style: TextStyle(color: theme.isDarkMode ? Colors.white : Colors.black87)),
+        title: Text(branch == null ? "Register New Branch" : "Edit Branch", 
+          style: TextStyle(color: theme.isDarkMode ? Colors.white : Colors.black87)),
         content: Form(
           key: _formKey,
           child: Column(
@@ -76,24 +101,39 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
               if (_formKey.currentState!.validate()) {
                 try {
                   final auth = context.read<AuthProvider>();
-                  final response = await http.post(
-                    Uri.parse('${ApiConfig.baseUrl}/branches'),
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'Authorization': 'Bearer ${auth.token}',
-                    },
-                    body: jsonEncode({
-                      'name': _branchNameController.text,
-                      'location': _locationController.text,
-                    }),
-                  );
-                  if (response.statusCode == 201) {
-                    Navigator.pop(ctx);
+                  final url = branch == null 
+                    ? '${ApiConfig.baseUrl}/branches' 
+                    : '${ApiConfig.baseUrl}/branches/${branch['_id']}';
+                  
+                  final response = await (branch == null 
+                    ? http.post(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ${auth.token}'}, body: jsonEncode({'name': _branchNameController.text, 'location': _locationController.text}))
+                    : http.put(Uri.parse(url), headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ${auth.token}'}, body: jsonEncode({'name': _branchNameController.text, 'location': _locationController.text})));
+
+                  final bool isSuccess = response.statusCode == 201 || response.statusCode == 200;
+                  final bool isJson = response.headers['content-type']?.contains('application/json') ?? false;
+
+                  if (isSuccess) {
+                    if (ctx.mounted) Navigator.pop(ctx);
                     _refreshBranches();
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Branch Registered")));
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(branch == null ? "Branch Registered Successfully" : "Branch Updated Successfully")),
+                      );
+                    }
+                  } else if (isJson) {
+                    final errorData = jsonDecode(response.body);
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(errorData['error'] ?? "Failed to save branch")),
+                      );
+                    }
+                  } else {
+                    throw Exception("Server returned ${response.statusCode}");
                   }
                 } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+                  }
                 }
               }
             },
@@ -107,8 +147,15 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
     final themeProvider = context.watch<ThemeProvider>();
     final bool isDark = themeProvider.isDarkMode;
+
+    if (!auth.isAdmin) {
+      return const Scaffold(
+        body: Center(child: Text("Access Denied: Administrators Only")),
+      );
+    }
 
     return AnimatedMeshBackground(
       child: Scaffold(
@@ -151,7 +198,29 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
                                 leading: const CircleAvatar(backgroundColor: Colors.brown, child: Icon(Icons.business, color: Colors.white)),
                                 title: Text(b['name'] ?? 'Unknown', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 subtitle: Text(b['location'] ?? 'No Location', style: const TextStyle(color: Colors.white70)),
-                                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white24),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, color: Colors.white70, size: 20),
+                                      onPressed: () => _showBranchDialog(branch: b),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                                      onPressed: () {
+                                        showDialog(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Text("Delete Branch?"),
+                                            actions: [
+                                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+                                              TextButton(onPressed: () { Navigator.pop(ctx); _deleteBranch(b['_id']); }, child: const Text("Delete", style: TextStyle(color: Colors.red))),
+                                            ],
+                                          ));
+                                      },
+                                    ),
+                                  ],
+                                ),
                               );
                             },
                           );
@@ -165,7 +234,7 @@ class _BranchManagementScreenState extends State<BranchManagementScreen> {
           ),
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: _showAddBranchDialog,
+          onPressed: () => _showBranchDialog(),
           backgroundColor: Colors.brown,
           icon: const Icon(Icons.add_location_alt),
           label: const Text("Add New Branch"),

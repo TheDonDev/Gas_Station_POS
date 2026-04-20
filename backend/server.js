@@ -106,7 +106,6 @@ const userSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, enum: ['admin', 'operator'], default: 'operator' },
-    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch' },
     createdAt: { type: Date, default: Date.now },
     resetPasswordToken: String,
     resetPasswordExpires: Date,
@@ -114,22 +113,13 @@ const userSchema = new mongoose.Schema({
     otpExpires: Date
 });
 
-const transactionSchema = new mongoose.Schema({
-    branchId: { type: mongoose.Schema.Types.ObjectId, ref: 'Branch', required: true },
-    operatorEmail: String,
-    totalAmount: { type: Number, required: true },
-    paymentMethod: String,
-    items: Array,
-    date: { type: Date, default: Date.now }
-});
-
-const Transaction = mongoose.model('Transaction', transactionSchema);
 const User = mongoose.model('User', userSchema);
 
 const branchSchema = new mongoose.Schema({
     name: { type: String, required: true },
     location: { type: String, required: true },
     managerEmail: String,
+    inventoryKg: { type: Number, default: 0 },
     createdAt: { type: Date, default: Date.now }
 });
 const Branch = mongoose.model('Branch', branchSchema);
@@ -167,7 +157,7 @@ const authenticateToken = (req, res, next) => {
     if (!token) return res.status(401).json({ error: "Access denied. No token provided." });
 
     jwt.verify(token, JWT_SECRET, (err, user) => {
-        if (err) return res.status(403).json({ error: "Invalid or expired token." });
+        if (err) return res.status(401).json({ error: "Session expired. Please login again." });
         req.user = user;
         next();
     });
@@ -270,18 +260,13 @@ app.post('/register', async (req, res) => {
 
 // Admin-only registration (bypass OTP requirement for system admins)
 app.post('/admin/register-user', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    const { email, password, role, branchId } = req.body;
+    const { email, password, role } = req.body;
     try {
         const existingUser = await User.findOne({ email });
         if (existingUser) return res.status(400).json({ error: "User already exists" });
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = new User({ 
-            email, 
-            password: hashedPassword, 
-            role: role || 'operator',
-            branchId: branchId || null 
-        });
+        const newUser = new User({ email, password: hashedPassword, role: role || 'operator' });
         await newUser.save();
 
         res.status(201).json({ message: "User created successfully by administrator" });
@@ -302,7 +287,7 @@ app.post('/login', async (req, res) => {
         }
 
         const token = jwt.sign({ userId: user._id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
-        res.status(200).json({ token, email: user.email, role: user.role, branchId: user.branchId });
+        res.status(200).json({ token, email: user.email, role: user.role });
     } catch (error) {
         logger.error("Login Database Error: %s", error.message);
         res.status(500).json({ error: "Internal Server Error: Database connection failed" });
@@ -446,13 +431,30 @@ app.get('/branches', authenticateToken, async (req, res) => {
 });
 
 app.post('/branches', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    const branch = new Branch(req.body);
+    await branch.save();
+    res.status(201).json(branch);
+});
+
+app.put('/branches/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     try {
-        const branch = new Branch(req.body);
-        await branch.save();
-        res.status(201).json(branch);
+        const branch = await Branch.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!branch) return res.status(404).json({ error: "Branch not found" });
+        res.json(branch);
     } catch (error) {
-        logger.error("Branch Save Error: %s", error.message);
-        res.status(500).json({ error: "Failed to save branch" });
+        logger.error("Branch Update Error: %s", error.message);
+        res.status(500).json({ error: "Failed to update branch" });
+    }
+});
+
+app.delete('/branches/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    try {
+        const branch = await Branch.findByIdAndDelete(req.params.id);
+        if (!branch) return res.status(404).json({ error: "Branch not found" });
+        res.json({ message: "Branch deleted successfully" });
+    } catch (error) {
+        logger.error("Branch Delete Error: %s", error.message);
+        res.status(500).json({ error: "Failed to delete branch" });
     }
 });
 
@@ -462,13 +464,31 @@ app.get('/suppliers', authenticateToken, async (req, res) => {
 });
 
 app.post('/suppliers', authenticateToken, async (req, res) => {
+    const supplier = new Supplier(req.body);
+    await supplier.save();
+    res.status(201).json(supplier);
+});
+
+app.put('/suppliers/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
     try {
-        const supplier = new Supplier(req.body);
-        await supplier.save();
-        res.status(201).json(supplier);
+        const supplier = await Supplier.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (!supplier) return res.status(404).json({ error: "Supplier not found" });
+        res.json(supplier);
     } catch (error) {
-        logger.error("Supplier Save Error: %s", error.message);
-        res.status(500).json({ error: "Failed to save supplier" });
+        logger.error("Supplier Update Error: %s", error.message);
+        res.status(500).json({ error: "Failed to update supplier" });
+    }
+});
+
+app.delete('/suppliers/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+    try {
+        // Note: You might want to check if the supplier has deliveries before deleting
+        const supplier = await Supplier.findByIdAndDelete(req.params.id);
+        if (!supplier) return res.status(404).json({ error: "Supplier not found" });
+        res.json({ message: "Supplier deleted successfully" });
+    } catch (error) {
+        logger.error("Supplier Delete Error: %s", error.message);
+        res.status(500).json({ error: "Failed to delete supplier" });
     }
 });
 
@@ -487,42 +507,6 @@ app.post('/deliveries', authenticateToken, async (req, res) => {
     });
     await delivery.save();
     res.status(201).json(delivery);
-});
-
-// --- TRANSACTION CLOUD SYNC API ---
-
-app.post('/transactions', authenticateToken, async (req, res) => {
-    try {
-        const transaction = new Transaction({
-            ...req.body,
-            operatorEmail: req.user.email
-        });
-        await transaction.save();
-        res.status(201).json(transaction);
-    } catch (error) {
-        res.status(500).json({ error: "Failed to sync transaction" });
-    }
-});
-
-app.get('/admin/branch-metrics/:branchId', authenticateToken, authorizeRole(['admin']), async (req, res) => {
-    try {
-        const branchId = req.params.branchId;
-        const transactions = await Transaction.find({ branchId });
-        
-        // Calculate Metrics
-        const totalSales = transactions.reduce((acc, curr) => acc + curr.totalAmount, 0);
-        
-        // Get Recent Deliveries (Trailer Intake) for this branch
-        const recentDeliveries = await Delivery.find({ branchId }).populate('supplierId').limit(5).sort({ date: -1 });
-
-        res.json({ 
-            totalSales, 
-            transactionCount: transactions.length,
-            recentDeliveries 
-        });
-    } catch (error) {
-        res.status(500).json({ error: "Failed to fetch detailed metrics" });
-    }
 });
 
 // Delete User (Admin Only)
@@ -663,6 +647,18 @@ const PORT = process.env.PORT || 3000;
 
 const startServer = async () => {
     await connectDB();
+    
+    // --- MongoDB Change Stream for Real-time Inventory ---
+    // Note: Change Streams require a MongoDB Replica Set
+    const branchChangeStream = Branch.watch();
+    branchChangeStream.on('change', (change) => {
+        if (change.operationType === 'update') {
+            const updatedFields = change.updateDescription.updatedFields;
+            logger.info(`📦 Real-time Sync: Branch ${change.documentKey._id} updated: %O`, updatedFields);
+            // Here you would emit this via Socket.io to the specific branch client
+        }
+    });
+
     app.listen(PORT, '0.0.0.0', () => logger.info(`🚀 Server running on port ${PORT} and connected to DB.`));
 };
 

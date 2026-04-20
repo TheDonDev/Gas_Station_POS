@@ -3,7 +3,7 @@
 
 #define MyAppName "Gas Cylinder Store POS"
 #define MyAppVersion "1.0.1"
-#define MyAppPublisher "Don Pro-G"
+#define MyAppPublisher "DonDev"
 #define MyAppExeName "gas_store_pos.exe"
 
 [Setup]
